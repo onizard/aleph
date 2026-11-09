@@ -64,6 +64,7 @@ h1 span{color:var(--blue)}
 .answer{font-family:var(--f-big);font-weight:700;font-size:clamp(2.2rem,11vw,4rem);direction:rtl;color:var(--ok);min-height:1.2em}
 .answer.fr{direction:ltr}
 .translit{font-style:italic;color:var(--soft);font-size:1.3rem;min-height:1.4em}
+.meter{width:min(320px,80vw);height:64px;display:block}
 .heard{color:var(--soft);font-size:1rem;min-height:1.4em}
 .heard b{color:var(--ink)}
 .bar{position:absolute;left:max(20px,env(safe-area-inset-left,0px));right:max(20px,env(safe-area-inset-right,0px));top:calc(16px + env(safe-area-inset-top,0px));display:flex;justify-content:space-between;color:var(--soft);font-variant-numeric:tabular-nums;font-weight:700}
@@ -143,6 +144,7 @@ h1 span{color:var(--blue)}
   <div class="prompt" id="dPrompt"></div>
   <div class="answer" id="dAnswer"></div>
   <div class="translit" id="dTranslit"></div>
+  <canvas id="meter" class="meter" hidden aria-hidden="true"></canvas>
   <div class="heard" id="dHeard"></div>
   <button class="stop" id="dStop" type="button">Arrêter</button>
 </section>
@@ -270,20 +272,70 @@ function beep(kind) {
 /* ---------- Écoute ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null;
-function listen(lang, ms) {
+function listen(lang, ms, check) {
   return new Promise(res => {
     if (!SR) return res({ error: 'unsupported' });
     rec = new SR();
     rec.lang = lang === 'he' ? 'he-IL' : 'fr-FR';
-    rec.interimResults = false; rec.maxAlternatives = 5; rec.continuous = false;
-    let out = null;
-    const timer = setTimeout(() => { try { rec.stop(); } catch (e) {} }, ms);
-    rec.onresult = e => { const r = e.results[0]; out = { alts: Array.from(r).map(a => a.transcript) }; };
+    rec.interimResults = true; rec.maxAlternatives = 5; rec.continuous = false;
+    let out = null, finished = false;
+    const finish = o => { if (finished) return; finished = true; clearTimeout(timer); meter.stop(); res(o); };
+    const timer = setTimeout(() => { try { rec && rec.stop(); } catch (e) {} }, ms);
+    rec.onresult = e => {
+      const alts = [];
+      for (let i = 0; i < e.results.length; i++) for (const a of e.results[i]) alts.push(a.transcript);
+      const joined = Array.from(e.results).map(r => r[0].transcript).join(' ');
+      if (joined && !alts.includes(joined)) alts.unshift(joined);
+      out = { alts };
+      if (alts[0]) $('dHeard').innerHTML = 'Entendu : <b>' + alts[0].replace(/[<&]/g, '') + '</b>';
+      // bonne réponse entendue : on valide tout de suite, sans attendre la fin de la phrase
+      if (check && check(alts)) { out.right = true; try { rec.abort(); } catch (x) {} finish(out); }
+    };
+    rec.onspeechstart = () => meter.speaking();
     rec.onerror = e => { if (!out) out = { error: e.error }; };
-    rec.onend = () => { clearTimeout(timer); rec = null; res(out || { error: 'no-speech' }); };
-    try { rec.start(); } catch (e) { clearTimeout(timer); res({ error: 'start' }); }
+    rec.onend = () => { rec = null; finish(out || { error: 'no-speech' }); };
+    try { rec.start(); meter.start(); } catch (e) { finish({ error: 'start' }); }
   });
 }
+
+/* ---------- Barre de son : montre que le micro capte la voix ---------- */
+const meter = (() => {
+  let stream = null, an = null, raf = 0, ctx2 = null, on = false, disabled = false, talk = false;
+  const cv = () => document.getElementById('meter');
+  async function ensure() {
+    if (an || disabled) return;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const src = actx.createMediaStreamSource(stream);
+      an = actx.createAnalyser(); an.fftSize = 256; an.smoothingTimeConstant = 0.7; src.connect(an);
+    } catch (e) { disabled = true; }
+  }
+  function draw() {
+    const c = cv(); if (!c) return;
+    const g = c.getContext('2d'), W = c.width = c.clientWidth * devicePixelRatio, H = c.height = c.clientHeight * devicePixelRatio;
+    g.clearRect(0, 0, W, H);
+    const n = 24, gap = W / n * 0.28, bw = W / n - gap;
+    let data = null;
+    if (an) { data = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(data); }
+    for (let i = 0; i < n; i++) {
+      let v;
+      if (data) { const k = 1 + Math.floor(i * 30 / n); v = Math.min(1, (data[k] / 255) * 1.4); } // fréquences de la voix (jusqu'à ~6 kHz)
+      else v = talk ? 0.25 + 0.5 * Math.abs(Math.sin(Date.now() / 120 + i)) : 0.06; // sans accès direct au micro
+      const h = Math.max(H * 0.06, v * H);
+      g.fillStyle = v > 0.15 ? '#FFC94A' : '#3A4A68';
+      g.beginPath(); g.roundRect ? g.roundRect(i * (bw + gap) + gap / 2, (H - h) / 2, bw, h, bw / 2) : g.rect(i * (bw + gap) + gap / 2, (H - h) / 2, bw, h); g.fill();
+    }
+    if (on) raf = requestAnimationFrame(draw);
+  }
+  return {
+    async start() { on = true; talk = false; const c = cv(); if (c) c.hidden = false; await ensure(); cancelAnimationFrame(raf); draw(); },
+    speaking() { talk = true; },
+    stop() { on = false; cancelAnimationFrame(raf); const c = cv(); if (c) c.hidden = true; },
+    // si le téléphone refuse le micro en double, on coupe la barre et on garde la reconnaissance
+    disable() { disabled = true; if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; an = null; }
+  };
+})();
 
 /* ---------- Interface ---------- */
 const $ = id => document.getElementById(id);
@@ -343,14 +395,15 @@ async function run() {
     let res, tries = 0;
     while (true) {
       show('À vous…', 'listening'); await beep('listen');
-      res = await listen(aLang, 8000);
+      res = await listen(aLang, 8000, alts => judge(alts, c, aLang));
+      if (res.error === 'audio-capture' && !S.meterOff) { S.meterOff = true; meter.disable(); continue; }
       if (!S || !S.on) return;
       if (res.error === 'not-allowed' || res.error === 'service-not-allowed') { await stopSession("Le micro est bloqué. Autorisez le micro pour ce site dans Chrome."); return; }
       if (res.error === 'network') { await speak("Pas de connexion internet. Je fais une pause.", 'fr'); pause(); break; }
       const said = res.alts ? res.alts.join(' / ') : '';
       if (res.alts) $('dHeard').innerHTML = 'Entendu : <b>' + res.alts[0].replace(/[<&]/g, '') + '</b>';
       // une bonne réponse passe avant les commandes (ex. « od pa'am » est aussi une carte)
-      if (res.alts && judge(res.alts, c, aLang)) { res.right = true; break; }
+      if (res.right || (res.alts && judge(res.alts, c, aLang))) { res.right = true; break; }
       if (res.alts && res.alts.some(isStop)) { pause(); break; }
       if (res.alts && res.alts.some(isRepeat) && tries < 3) { tries++; await speak(q, qLang, 0.8); continue; }
       break;
@@ -362,7 +415,6 @@ async function run() {
     $('dTranslit').textContent = c.tr;
     if (ok) {
       S.good++; record(c.id, true); show('Juste !', 'ok'); await beep('ok');
-      await speak(aLang === 'he' ? c.he : c.fr, aLang, 0.9);
     } else {
       S.bad++; record(c.id, false); show('À revoir', 'bad'); await beep('bad');
       if (aLang === 'he') { await speak('La réponse est', 'fr'); await speak(c.he, 'he', 0.75); await speak(c.he, 'he', 0.6); }
@@ -379,7 +431,7 @@ async function run() {
         await speak(c.he, 'he', 0.6);
       } else if (r2.alts && r2.alts.some(isStop)) { pause(); }
     }
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, ok ? 250 : 500));
   }
   if (S && S.on) {
     await speak(`Séance terminée. ${S.good} bonnes réponses sur ${S.count}. Bravo !`, 'fr');
