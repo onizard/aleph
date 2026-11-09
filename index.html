@@ -38,6 +38,8 @@ h1 span{color:var(--blue)}
 .seg button{font:inherit;color:var(--ink);background:transparent;border:2px solid var(--line);border-radius:12px;padding:10px 6px;font-weight:700;cursor:pointer;line-height:1.25}
 .seg button[aria-pressed="true"]{border-color:var(--blue);background:rgba(111,163,255,.14)}
 .go{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:2;font-family:var(--f-big);font-weight:800;font-size:1.5rem;border:0;border-radius:20px;padding:20px;background:var(--blue);color:#0B1220;cursor:pointer;box-shadow:0 4px 0 #3D6FCC}
+.share{display:flex;align-items:center;justify-content:center;gap:8px;font:inherit;font-weight:700;color:var(--ink);background:transparent;border:2px solid var(--line);border-radius:16px;padding:14px;cursor:pointer}
+.share:active{transform:translateY(1px)}
 .go:active{transform:translateY(2px);box-shadow:0 2px 0 #3D6FCC}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
 .stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 4px}
@@ -153,6 +155,11 @@ h1 span{color:var(--blue)}
       <li>Si vous ne dites rien pendant 8 secondes, la réponse est donnée.</li>
     </ul>
   </section>
+
+  <button class="share" id="share" type="button">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
+    <span>Partager l'appli</span>
+  </button>
 </main>
 
 <section class="drive" id="drive" hidden aria-live="polite">
@@ -563,6 +570,16 @@ $('start').onclick = async () => {
 };
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && S && !wake) { try { wake = await navigator.wakeLock.request('screen'); } catch (e) {} }
+});
+</script>
+<script>
+document.getElementById('share').addEventListener('click', async () => {
+  const url = 'https://onizard.github.io/aleph/', b = document.querySelector('#share span');
+  const data = { title: 'Aleph', text: "Aleph : des flashcards d'hébreu à la voix, mains libres (idéal en voiture).", url };
+  try { if (navigator.share) { await navigator.share(data); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); b.textContent = 'Lien copié !'; }
+  catch (e) { prompt('Copiez ce lien :', url); return; }
+  setTimeout(() => (b.textContent = "Partager l'appli"), 2500);
 });
 </script>
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
