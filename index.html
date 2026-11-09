@@ -191,7 +191,7 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catc
    Erreur : la carte revient 5 à 10 cartes plus tard, et son compteur repart à zéro.
    Bonne réponse : elle revient de plus en plus tard (GAPS). Au bout de 7 bonnes
    réponses de suite, elle est apprise et ne revient plus. */
-const GAPS = [10, 25, 60, 150, 400, 1000]; // délai après la 1re, 2e, … 6e bonne réponse
+const GAPS = [100, 200, 400, 800, 1600, 3200]; // délai (en cartes) après la 1re, 2e, … 6e bonne réponse
 const MASTER = 7;
 st.n = st.n || 0;
 const seen = id => !!st.boxes[id];
@@ -201,6 +201,8 @@ const mastered = id => streak(id) >= MASTER;
 for (const [id, b] of Object.entries(st.boxes)) if (b && b.s === undefined) {
   b.s = Math.min(b.b || 0, MASTER - 1); b.due = b.s ? st.n + GAPS[b.s - 1] : st.n + 5; delete b.b; delete b.t;
 }
+// passage aux nouveaux délais : on replanifie les cartes déjà réussies
+if (st.v !== 2) { for (const b of Object.values(st.boxes)) if (b && b.s >= 1 && b.s < MASTER) b.due = st.n + GAPS[b.s - 1]; st.v = 2; save(); }
 function record(id, ok) {
   const b = st.boxes[id] || { s: 0, ok: 0, ko: 0 };
   if (ok) { b.s = b.s + 1; b.ok++; b.due = b.s >= MASTER ? -1 : st.n + GAPS[b.s - 1]; }
