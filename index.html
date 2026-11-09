@@ -509,6 +509,7 @@ async function run() {
       const ans = aLang === 'he' ? c.he : c.fr, rate = aLang === 'he' ? 0.8 : 0.95;
       await speak(ans, aLang, rate);
       // la carte réponse reste affichée jusqu'à ce que la bonne réponse soit répétée ; la carte reste comptée comme ratée
+      let slow = rate, misses = 0;
       while (S && S.on) {
         show('Répétez la réponse', 'bad'); await beep('listen');
         const r2 = await listen(aLang, 10000, a => judge(a, c, aLang));
@@ -516,7 +517,16 @@ async function run() {
         if (r2.error === 'not-allowed' || r2.error === 'service-not-allowed') { await stopSession("Le micro est bloqué. Autorisez le micro pour ce site dans Chrome."); return; }
         if (r2.right || (r2.alts && judge(r2.alts, c, aLang))) { show('Bien répété', 'ok'); beep('ok'); break; }
         if (r2.alts && r2.alts.some(isStop)) { pause(); break; }
-        await speak(ans, aLang, rate); // « od pa'am », autre chose ou silence : on redit la réponse
+        if (r2.alts && !r2.alts.some(isRepeat)) {
+          // mot ou prononciation pas juste : la voix corrige, comme un prof, un peu plus lentement à chaque fois
+          misses++; show('Écoutez bien…', 'bad');
+          slow = Math.max(aLang === 'he' ? 0.5 : 0.7, slow - 0.12);
+          await speak(aLang === 'he' ? 'Non. Écoute bien.' : 'Non. Écoute bien.', 'fr', 1);
+          if (!S || !S.on) return;
+          // à partir du 2e essai raté, une petite pause entre chaque mot
+          const words = ans.split(/\s+/);
+          await speak(misses >= 2 && words.length > 1 ? words.join(', ') : ans, aLang, slow);
+        } else await speak(ans, aLang, slow); // silence ou « od pa'am » : on redit la réponse
       }
     }
     if (!S || !S.on) return;
