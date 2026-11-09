@@ -169,7 +169,6 @@ h1 span{color:var(--blue)}
     <span class="label">Dernières réponses refusées</span>
     <p class="lead" style="margin:0;font-size:.9rem">Ce que l'appli a entendu. Si c'était juste, faites une capture de cet écran et envoyez-la : j'ajusterai la comparaison.</p>
     <div id="missList"></div>
-    <div class="seg"><button type="button" id="meterToggle"></button></div>
   </section>
   <button class="link" id="reset" type="button">Remettre les progrès à zéro</button>
 </main>
@@ -204,6 +203,7 @@ function buildCards() {
     CARDS.push({ id: t.id + '|' + he + '|' + fr, theme: t.id, fr, he, tr });
   }
 }
+delete st.prefs.noMeter; delete st.prefs.realMeter;
 buildCards();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
 /* ---------- Répétition espacée, comptée en nombre de cartes ----------
@@ -281,7 +281,6 @@ function judge(alts, c, lang) {
 const isDontKnow = s => /לא יוד|אין לי מושג|דלג|תדלג|ne sais pas|sais pas|passe/.test(s);
 const isRepeat = s => /עוד פעם|שוב|תחזור|encore|répète/.test(s);
 const isStop = s => /^(עצור|תעצור|די|stop|pause|arrête)$/i.test(normHe(s)) || /(^| )עצור( |$)/.test(normHe(s));
-const isRight = s => /נכון|c.?était juste/.test(s);
 
 /* ---------- Voix ---------- */
 const synth = window.speechSynthesis;
@@ -386,43 +385,27 @@ function listen(lang, ms, check) {
   });
 }
 
-/* ---------- Barre de son : montre que le micro capte la voix ---------- */
+/* ---------- Barre de son : s'anime quand la reconnaissance entend une voix ---------- */
 const meter = (() => {
-  let stream = null, an = null, raf = 0, ctx2 = null, on = false, disabled = false, talk = false;
-  const cv = () => document.getElementById('meter');
-  async function ensure() {
-    if (an || disabled || !st.prefs.realMeter) return;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      const src = actx.createMediaStreamSource(stream);
-      an = actx.createAnalyser(); an.fftSize = 256; an.smoothingTimeConstant = 0.7; src.connect(an);
-    } catch (e) { disabled = true; }
-  }
+  let raf = 0, on = false, talk = false;
   function draw() {
-    const c = cv(); if (!c) return;
+    const c = document.getElementById('meter'); if (!c) return;
     const g = c.getContext('2d'), W = c.width = c.clientWidth * devicePixelRatio, H = c.height = c.clientHeight * devicePixelRatio;
     g.clearRect(0, 0, W, H);
-    const n = 24, gap = W / n * 0.28, bw = W / n - gap;
-    let data = null;
-    if (an) { data = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(data); }
+    const n = 24, gap = W / n * 0.28, bw = W / n - gap, t = Date.now();
     for (let i = 0; i < n; i++) {
-      let v;
-      if (data) { const k = 1 + Math.floor(i * 30 / n); v = Math.min(1, (data[k] / 255) * 1.4); } // fréquences de la voix (jusqu'à ~6 kHz)
-      else v = talk ? 0.25 + 0.5 * Math.abs(Math.sin(Date.now() / 120 + i)) : 0.06; // sans accès direct au micro
+      const v = talk ? 0.3 + 0.6 * Math.abs(Math.sin(t / 110 + i * 0.9) * Math.cos(t / 170 + i * 0.4)) : 0.06;
       const h = Math.max(H * 0.06, v * H);
-      g.fillStyle = v > 0.15 ? '#FFC94A' : '#3A4A68';
+      g.fillStyle = talk ? '#FFC94A' : '#3A4A68';
       g.beginPath(); g.roundRect ? g.roundRect(i * (bw + gap) + gap / 2, (H - h) / 2, bw, h, bw / 2) : g.rect(i * (bw + gap) + gap / 2, (H - h) / 2, bw, h); g.fill();
     }
     if (on) raf = requestAnimationFrame(draw);
   }
   return {
-    async start() { on = true; talk = false; const c = cv(); if (c) c.hidden = false; await ensure(); cancelAnimationFrame(raf); draw(); },
+    start() { on = true; talk = false; const c = document.getElementById('meter'); if (c) c.hidden = false; cancelAnimationFrame(raf); draw(); },
     speaking() { talk = true; },
     quiet() { talk = false; },
-    stop() { on = false; cancelAnimationFrame(raf); const c = cv(); if (c) c.hidden = true; },
-    // si le téléphone refuse le micro en double, on coupe la barre et on garde la reconnaissance
-    disable() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; an = null; }
+    stop() { on = false; cancelAnimationFrame(raf); const c = document.getElementById('meter'); if (c) c.hidden = true; }
   };
 })();
 
@@ -441,16 +424,14 @@ function refreshHome() {
   if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
   $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
   const ms = st.misses || [];
-  $('missPanel').hidden = !ms.length && !st.prefs.realMeter;
+  $('missPanel').hidden = !ms.length;
   const e = t => String(t).replace(/[<&]/g, '');
   $('missList').innerHTML = ms.map(m => `<div class="miss">${e(m.q)} → attendu <b class="he">${e(m.exp)}</b><br>entendu : <span class="h he">${m.heard.map(e).join(' · ')}</span></div>`).join('');
-  $('meterToggle').textContent = st.prefs.realMeter ? 'Barre de son simple (recommandé)' : 'Barre de son précise (peut gêner le micro)';
   $('voices').innerHTML = 'Hébreu : <b>' + (vHe ? vHe.name + ' (' + vHe.lang + ')' : 'aucune voix trouvée') + '</b><br>Français : <b>' + (vFr ? vFr.name + ' (' + vFr.lang + ')' : 'aucune voix trouvée') + '</b>';
 }
 document.querySelectorAll('#dirs button').forEach(b => b.onclick = () => { st.prefs.dir = b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#lens button').forEach(b => b.onclick = () => { st.prefs.len = +b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#sexes button, #welcomeSex button').forEach(b => b.onclick = () => { st.prefs.sex = b.dataset.v; save(); buildCards(); refreshHome(); window.scrollTo(0, 0); });
-$('meterToggle').onclick = () => { st.prefs.realMeter = !st.prefs.realMeter; meter.disable(); save(); refreshHome(); };
 let resetArmed = false;
 $('reset').onclick = () => {
   if (!resetArmed) { resetArmed = true; $('reset').textContent = 'Touchez encore pour tout effacer'; setTimeout(() => { resetArmed = false; $('reset').textContent = 'Remettre les progrès à zéro'; }, 4000); return; }
@@ -500,7 +481,6 @@ async function run() {
     while (true) {
       show('À vous…', 'listening'); await beep('listen');
       res = await listen(aLang, 8000, alts => judge(alts, c, aLang));
-      if (res.error === 'audio-capture' && !S.meterOff) { S.meterOff = true; st.prefs.realMeter = false; save(); meter.disable(); continue; }
       if (!S || !S.on) return;
       if (res.error === 'not-allowed' || res.error === 'service-not-allowed') { await stopSession("Le micro est bloqué. Autorisez le micro pour ce site dans Chrome."); return; }
       if (res.error === 'network') { await speak("Pas de connexion internet. Je fais une pause.", 'fr'); pause(); break; }
