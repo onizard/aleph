@@ -334,32 +334,55 @@ function beep(kind) {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null;
 function listen(lang, ms, check) {
+  // Écoute robuste : une reconnaissance courte à la fois, relancée aussitôt qu'elle s'arrête,
+  // jusqu'à la bonne réponse, 1,3 s de silence après avoir parlé, ou la fin du délai.
+  // Tout ce qui est dit est gardé, même avec des pauses ou des mots autour.
   return new Promise(res => {
     if (!SR) return res({ error: 'unsupported' });
-    rec = new SR();
-    rec.lang = lang === 'he' ? 'he-IL' : 'fr-FR';
-    // écoute continue : on garde tout ce qui est dit (même avec des pauses ou des mots autour)
-    rec.interimResults = true; rec.maxAlternatives = 5; rec.continuous = true;
-    let out = null, finished = false, quiet = 0;
-    const finish = o => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(quiet); try { rec && rec.abort(); } catch (x) {} meter.stop(); res(o); };
-    const timer = setTimeout(() => { try { rec && rec.stop(); } catch (e) {} }, ms);
-    rec.onresult = e => {
-      const alts = [];
-      for (let i = 0; i < e.results.length; i++) for (const a of e.results[i]) alts.push(a.transcript);
-      const joined = Array.from(e.results).map(r => r[0].transcript).join(' ');
-      if (joined && !alts.includes(joined)) alts.unshift(joined);
-      out = { alts };
-      if (alts[0]) $('dHeard').innerHTML = 'Entendu : <b>' + alts[0].replace(/[<&]/g, '') + '</b>';
-      // bonne réponse entendue : on valide tout de suite, sans attendre la fin de la phrase
-      if (check && check(alts)) { out.right = true; try { rec.abort(); } catch (x) {} finish(out); return; }
-      // pas (encore) la bonne réponse : si plus rien n'est dit pendant 1,3 s, on tranche
-      clearTimeout(quiet);
-      if (e.results[e.results.length - 1].isFinal) quiet = setTimeout(() => finish(out), 1300);
+    const t0 = Date.now();
+    let finals = [], finalAlts = [], cur = [], curBest = '', finished = false, quiet = 0, lastErr = null, r = null, spoke = false;
+    const alts = () => {
+      const best = (finals.join(' ') + ' ' + curBest).trim();
+      return [...new Set([best, ...cur, ...finalAlts].filter(Boolean))];
     };
-    rec.onspeechstart = () => meter.speaking();
-    rec.onerror = e => { if (!out) out = { error: e.error }; };
-    rec.onend = () => { rec = null; finish(out || { error: 'no-speech' }); };
-    try { rec.start(); if (!st.prefs.noMeter) meter.start(); } catch (e) { finish({ error: 'start' }); }
+    const result = () => { const a = alts(); return a.length ? { alts: a } : { error: lastErr || 'no-speech' }; };
+    const finish = o => {
+      if (finished) return; finished = true; clearTimeout(timer); clearTimeout(quiet);
+      try { r && r.abort(); } catch (x) {} rec = null; meter.stop(); res(o);
+    };
+    const timer = setTimeout(() => finish(result()), ms);
+    function startOne() {
+      if (finished) return;
+      r = rec = new SR();
+      r.lang = lang === 'he' ? 'he-IL' : 'fr-FR';
+      r.interimResults = true; r.maxAlternatives = 5; r.continuous = false;
+      r.onresult = e => {
+        spoke = true; meter.speaking();
+        cur = []; curBest = '';
+        for (let i = 0; i < e.results.length; i++) {
+          const rr = e.results[i];
+          if (rr.isFinal) { finals.push(rr[0].transcript); for (const x of rr) finalAlts.push(x.transcript); }
+          else { curBest += ' ' + rr[0].transcript; for (const x of rr) cur.push(x.transcript); }
+        }
+        // une fois rangés dans « finals », on vide la session courante pour ne pas les compter deux fois
+        if (Array.from(e.results).every(x => x.isFinal)) { cur = []; curBest = ''; }
+        const a = alts();
+        if (a[0]) $('dHeard').innerHTML = 'Entendu : <b>' + a[0].replace(/[<&]/g, '') + '</b>';
+        if (check && check(a)) { finish({ alts: a, right: true }); return; }
+        clearTimeout(quiet);
+        if (e.results[e.results.length - 1].isFinal) quiet = setTimeout(() => finish(result()), 1300);
+      };
+      r.onspeechstart = () => meter.speaking();
+      r.onspeechend = () => meter.quiet();
+      r.onerror = e => {
+        lastErr = e.error;
+        if (['not-allowed', 'service-not-allowed', 'network', 'audio-capture'].includes(e.error)) finish({ error: e.error });
+      };
+      // la reconnaissance s'arrête d'elle-même après une pause : on la relance tout de suite
+      r.onend = () => { if (!finished && Date.now() - t0 < ms - 400) setTimeout(startOne, 30); };
+      try { r.start(); } catch (e) { finish({ error: 'start' }); }
+    }
+    startOne(); meter.start();
   });
 }
 
@@ -368,7 +391,7 @@ const meter = (() => {
   let stream = null, an = null, raf = 0, ctx2 = null, on = false, disabled = false, talk = false;
   const cv = () => document.getElementById('meter');
   async function ensure() {
-    if (an || disabled) return;
+    if (an || disabled || !st.prefs.realMeter) return;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
@@ -396,9 +419,10 @@ const meter = (() => {
   return {
     async start() { on = true; talk = false; const c = cv(); if (c) c.hidden = false; await ensure(); cancelAnimationFrame(raf); draw(); },
     speaking() { talk = true; },
+    quiet() { talk = false; },
     stop() { on = false; cancelAnimationFrame(raf); const c = cv(); if (c) c.hidden = true; },
     // si le téléphone refuse le micro en double, on coupe la barre et on garde la reconnaissance
-    disable() { disabled = true; if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; an = null; }
+    disable() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; an = null; }
   };
 })();
 
@@ -417,16 +441,16 @@ function refreshHome() {
   if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
   $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
   const ms = st.misses || [];
-  $('missPanel').hidden = !ms.length && !st.prefs.noMeter;
+  $('missPanel').hidden = !ms.length && !st.prefs.realMeter;
   const e = t => String(t).replace(/[<&]/g, '');
   $('missList').innerHTML = ms.map(m => `<div class="miss">${e(m.q)} → attendu <b class="he">${e(m.exp)}</b><br>entendu : <span class="h he">${m.heard.map(e).join(' · ')}</span></div>`).join('');
-  $('meterToggle').textContent = st.prefs.noMeter ? 'Réactiver la barre de son' : 'Essayer sans la barre de son';
+  $('meterToggle').textContent = st.prefs.realMeter ? 'Barre de son simple (recommandé)' : 'Barre de son précise (peut gêner le micro)';
   $('voices').innerHTML = 'Hébreu : <b>' + (vHe ? vHe.name + ' (' + vHe.lang + ')' : 'aucune voix trouvée') + '</b><br>Français : <b>' + (vFr ? vFr.name + ' (' + vFr.lang + ')' : 'aucune voix trouvée') + '</b>';
 }
 document.querySelectorAll('#dirs button').forEach(b => b.onclick = () => { st.prefs.dir = b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#lens button').forEach(b => b.onclick = () => { st.prefs.len = +b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#sexes button, #welcomeSex button').forEach(b => b.onclick = () => { st.prefs.sex = b.dataset.v; save(); buildCards(); refreshHome(); window.scrollTo(0, 0); });
-$('meterToggle').onclick = () => { st.prefs.noMeter = !st.prefs.noMeter; save(); refreshHome(); };
+$('meterToggle').onclick = () => { st.prefs.realMeter = !st.prefs.realMeter; meter.disable(); save(); refreshHome(); };
 let resetArmed = false;
 $('reset').onclick = () => {
   if (!resetArmed) { resetArmed = true; $('reset').textContent = 'Touchez encore pour tout effacer'; setTimeout(() => { resetArmed = false; $('reset').textContent = 'Remettre les progrès à zéro'; }, 4000); return; }
@@ -476,7 +500,7 @@ async function run() {
     while (true) {
       show('À vous…', 'listening'); await beep('listen');
       res = await listen(aLang, 8000, alts => judge(alts, c, aLang));
-      if (res.error === 'audio-capture' && !S.meterOff) { S.meterOff = true; meter.disable(); continue; }
+      if (res.error === 'audio-capture' && !S.meterOff) { S.meterOff = true; st.prefs.realMeter = false; save(); meter.disable(); continue; }
       if (!S || !S.on) return;
       if (res.error === 'not-allowed' || res.error === 'service-not-allowed') { await stopSession("Le micro est bloqué. Autorisez le micro pour ce site dans Chrome."); return; }
       if (res.error === 'network') { await speak("Pas de connexion internet. Je fais une pause.", 'fr'); pause(); break; }
