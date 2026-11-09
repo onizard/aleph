@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0E1626">
+<meta name="robots" content="noindex,nofollow">
+<title>Aleph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* Écran de tableau de bord : fond nuit, une seule information géante, couleurs d'état lisibles d'un coup d'œil */
+:root{
+  --bg:#0E1626; --panel:#16213A; --line:#26344F; --ink:#EEF2F8; --soft:#9AA8C2;
+  --blue:#6FA3FF; --ok:#3DDC84; --bad:#FF6B5E; --listen:#FFC94A;
+  --f-big:"Rubik","Arial Hebrew","Segoe UI",system-ui,sans-serif;
+  --f-body:"Atkinson Hyperlegible","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.45;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+.wrap{max-width:620px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:18px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 28px}
+h1{font-family:var(--f-big);font-weight:800;font-size:1.7rem;margin:0;letter-spacing:-.01em}
+h1 span{color:var(--blue)}
+.lead{color:var(--soft);margin:4px 0 0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.label{font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+#lens{grid-template-columns:repeat(3,1fr)}
+.seg button{font:inherit;color:var(--ink);background:transparent;border:2px solid var(--line);border-radius:12px;padding:12px 8px;font-weight:700;cursor:pointer}
+.seg button[aria-pressed="true"]{border-color:var(--blue);background:rgba(111,163,255,.14)}
+.go{font-family:var(--f-big);font-weight:800;font-size:1.5rem;border:0;border-radius:20px;padding:26px 20px;background:var(--blue);color:#0B1220;cursor:pointer;box-shadow:0 4px 0 #3D6FCC}
+.go:active{transform:translateY(2px);box-shadow:0 2px 0 #3D6FCC}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 4px}
+.stats b{display:block;font-family:var(--f-big);font-size:1.6rem;font-variant-numeric:tabular-nums}
+.stats span{font-size:.8rem;color:var(--soft)}
+.cmds{margin:0;padding-left:18px;color:var(--soft)}
+.cmds b{color:var(--ink)}
+.warn{background:rgba(255,107,94,.12);border:1px solid var(--bad);border-radius:12px;padding:12px;color:var(--ink)}
+.link{background:none;border:0;color:var(--soft);text-decoration:underline;font:inherit;cursor:pointer;padding:0;align-self:flex-start}
+
+/* Écran de conduite */
+.drive{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;
+  padding:calc(24px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));
+  background:var(--bg);transition:background .25s}
+.drive.ok{background:#0F2A1D}.drive.bad{background:#2E1414}
+.state{font-family:var(--f-big);font-weight:700;font-size:1.05rem;letter-spacing:.12em;text-transform:uppercase;color:var(--soft);display:flex;align-items:center;gap:10px}
+.dot{width:14px;height:14px;border-radius:50%;background:var(--soft)}
+.listening .dot{background:var(--listen);animation:pulse 1s ease-in-out infinite}
+.listening .state{color:var(--listen)}
+.ok .state,.ok .dot{color:var(--ok);background:none}.ok .dot{background:var(--ok)}
+.bad .state{color:var(--bad)}.bad .dot{background:var(--bad)}
+@keyframes pulse{50%{transform:scale(1.5);opacity:.6}}
+.prompt{font-family:var(--f-big);font-weight:800;font-size:clamp(2rem,9vw,3.4rem);line-height:1.15;text-wrap:balance;max-width:16ch;overflow-wrap:anywhere}
+.answer{font-family:var(--f-big);font-weight:700;font-size:clamp(2.2rem,11vw,4rem);direction:rtl;color:var(--ok);min-height:1.2em}
+.answer.fr{direction:ltr}
+.translit{font-style:italic;color:var(--soft);font-size:1.3rem;min-height:1.4em}
+.heard{color:var(--soft);font-size:1rem;min-height:1.4em}
+.heard b{color:var(--ink)}
+.bar{position:absolute;left:max(20px,env(safe-area-inset-left,0px));right:max(20px,env(safe-area-inset-right,0px));top:calc(16px + env(safe-area-inset-top,0px));display:flex;justify-content:space-between;color:var(--soft);font-variant-numeric:tabular-nums;font-weight:700}
+.stop{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);font:inherit;font-weight:700;color:var(--ink);background:transparent;border:2px solid var(--line);border-radius:99px;padding:12px 28px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.listening .dot{animation:none}}
+</style>
+</head>
+<body>
+<main class="wrap" id="home">
+  <header>
+    <h1><span lang="he">א</span> Aleph</h1>
+    <p class="lead">L'hébreu au volant : l'appli parle, vous répondez, sans toucher l'écran.</p>
+  </header>
+
+  <div class="warn" id="warn" hidden></div>
+
+  <section class="panel">
+    <span class="label">Vos progrès</span>
+    <div class="stats">
+      <div><b id="stKnown">0</b><span>cartes sues</span></div>
+      <div><b id="stReview">0</b><span>à revoir</span></div>
+      <div><b id="stNew">0</b><span>pas encore vues</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <span class="label">Sens</span>
+    <div class="seg" id="dirs">
+      <button type="button" data-v="fr-he" id="dir-fr-he">J'entends le français, je dis l'hébreu</button>
+      <button type="button" data-v="he-fr" id="dir-he-fr">J'entends l'hébreu, je dis le français</button>
+    </div>
+    <span class="label">Durée de la séance</span>
+    <div class="seg" id="lens">
+      <button type="button" data-v="20" id="len-20">20 cartes</button>
+      <button type="button" data-v="40" id="len-40">40 cartes</button>
+      <button type="button" data-v="0" id="len-0">Sans fin</button>
+    </div>
+  </section>
+
+  <button class="go" id="start" type="button">Démarrer</button>
+
+  <section class="panel">
+    <span class="label">Pendant la séance, dites…</span>
+    <ul class="cmds">
+      <li><b>« lo yodéa »</b> (je ne sais pas) : l'appli donne la réponse.</li>
+      <li><b>« od pa'am »</b> (encore une fois) : elle répète.</li>
+      <li><b>« nakhon »</b> (c'est juste), juste après une correction : la carte est validée quand même.</li>
+      <li><b>« atsor »</b> (stop) : pause. Touchez l'écran pour reprendre.</li>
+      <li>Si vous ne dites rien pendant 8 secondes, la réponse est donnée.</li>
+    </ul>
+  </section>
+  <button class="link" id="reset" type="button">Remettre les progrès à zéro</button>
+</main>
+
+<section class="drive" id="drive" hidden aria-live="polite">
+  <div class="bar"><span id="dCount">0 / 20</span><span id="dScore">✓ 0 · ✗ 0</span></div>
+  <div class="state"><i class="dot"></i><span id="dState">Prêt</span></div>
+  <div class="prompt" id="dPrompt"></div>
+  <div class="answer" id="dAnswer"></div>
+  <div class="translit" id="dTranslit"></div>
+  <div class="heard" id="dHeard"></div>
+  <button class="stop" id="dStop" type="button">Arrêter</button>
+</section>
+
+<script>
+const DATA = [{"id":"he-politesse","nom":"Politesse et salutations","cards":[["bonjour, salut, au revoir","שלום","shalom"],["bonjour (le matin)","בוקר טוב","boker tov"],["réponse à « bonjour » (le matin)","בוקר אור","boker or"],["bonsoir","ערב טוב","erev tov"],["bonne nuit","לילה טוב","layla tov"],["bonne journée","יום טוב","yom tov"],["bonne semaine (le samedi soir)","שבוע טוב","shavoua tov"],["chabbat chalom","שבת שלום","shabbat shalom"],["bonne fête","חג שמח","khag saméakh"],["merci","תודה","toda"],["merci beaucoup","תודה רבה","toda raba"],["s'il te plaît / je t'en prie","בבקשה","bevakasha"],["pardon, excusez-moi","סליחה","slikha"],["désolé (homme)","אני מצטער","ani mitsta'er"],["désolée (femme)","אני מצטערת","ani mitsta'éret"],["de rien","אין בעד מה","eyn be'ad ma"],["avec plaisir","בכיף","bekef"],["bienvenue","ברוך הבא","baroukh haba"],["bienvenue (à plusieurs)","ברוכים הבאים","broukhim habaïm"],["comment ça va ? (à un homme)","מה שלומך?","ma shlomkha?"],["comment ça va ? (à une femme)","מה שלומך?","ma shlomekh?"],["quoi de neuf ? ça va ?","מה נשמע?","ma nishma?"],["ça va ? (familier)","מה קורה?","ma koré?"],["ça va bien","הכל טוב","hakol tov"],["bien, très bien","טוב מאוד","tov méod"],["ça va, comme ci comme ça","ככה ככה","kakha kakha"],["bien, merci","בסדר, תודה","beseder, toda"],["enchanté (homme)","נעים מאוד","naïm méod"],["au revoir, à plus","להתראות","lehitraot"],["salut, bye (familier)","ביי","bye"],["à demain","נתראה מחר","nitraé makhar"],["à bientôt","נתראה בקרוב","nitraé bekarov"],["bonne chance","בהצלחה","behatslakha"],["félicitations, mazal tov","מזל טוב","mazal tov"],["bon appétit","בתיאבון","beté'avon"],["à la santé ! (en trinquant)","לחיים","lekhaïm"],["à tes souhaits / guéris vite","לבריאות","labriout"],["prompt rétablissement","רפואה שלמה","refoua shléma"],["bon voyage","נסיעה טובה","nesia tova"],["bon anniversaire","יום הולדת שמח","yom houledet saméakh"],["bonne année","שנה טובה","shana tova"],["oui","כן","ken"],["non","לא","lo"],["d'accord, OK","בסדר","beseder"],["peut-être","אולי","oulay"],["bien sûr","בטח","betakh"],["volontiers, avec joie","בשמחה","besimkha"],["je ne sais pas","אני לא יודע","ani lo yodéa"],["je ne comprends pas","אני לא מבין","ani lo mévin"],["tu peux répéter ?","אפשר לחזור על זה?","efshar lakhzor al zé?"],["parle plus lentement, s'il te plaît","תדבר לאט, בבקשה","tedaber lat, bevakasha"],["comment tu t'appelles ? (à un homme)","איך קוראים לך?","eykh korim lekha?"],["comment tu t'appelles ? (à une femme)","איך קוראים לך?","eykh korim lakh?"],["je m'appelle…","קוראים לי…","korim li…"],["d'où es-tu ? (à un homme)","מאיפה אתה?","méeyfo ata?"],["je suis de France","אני מצרפת","ani mitsarfat"],["je suis français / française","אני צרפתי / צרפתייה","ani tsarfati / tsarfatiya"],["tu parles hébreu ?","אתה מדבר עברית?","ata medaber ivrit?"],["un peu","קצת","ktsat"],["je parle un peu hébreu","אני מדבר קצת עברית","ani medaber ktsat ivrit"]]},{"id":"he-phrases","nom":"Phrases utiles","cards":[["je veux…","אני רוצה…","ani rotsé…"],["je ne veux pas","אני לא רוצה","ani lo rotsé"],["j'ai besoin d'aide","אני צריך עזרה","ani tsarikh ezra"],["tu peux m'aider ? (à un homme)","אתה יכול לעזור לי?","ata yakhol la'azor li?"],["tu peux m'aider ? (à une femme)","את יכולה לעזור לי?","at yekhola la'azor li?"],["est-ce possible ?","אפשר?","efshar?"],["c'est possible de… ?","אפשר ל…?","efshar le…?"],["je peux avoir… ?","אפשר לקבל…?","efshar lekabel…?"],["je me suis perdu","הלכתי לאיבוד","halakhti le'ibbod"],["je ne parle pas bien hébreu","אני לא מדבר עברית טוב","ani lo medaber ivrit tov"],["tu parles français ?","אתה מדבר צרפתית?","ata medaber tsarfatit?"],["tu parles anglais ?","אתה מדבר אנגלית?","ata medaber anglit?"],["comment dit-on… en hébreu ?","איך אומרים… בעברית?","eykh omrim… be'ivrit?"],["qu'est-ce que ça veut dire ?","מה זה אומר?","ma zé omer?"],["écris-le-moi, s'il te plaît","תכתוב לי, בבקשה","tikhtov li, bevakasha"],["j'habite à Paris","אני גר בפריז","ani gar beparis"],["je suis en vacances","אני בחופש","ani bekhofesh"],["je suis touriste","אני תייר","ani tayar"],["nous sommes une famille","אנחנו משפחה","anakhnou mishpakha"],["j'ai trois enfants","יש לי שלושה ילדים","yesh li shlosha yeladim"],["c'est combien pour aller à… ?","כמה זה עולה עד…?","kama zé olé ad…?"],["une table pour quatre, s'il vous plaît","שולחן לארבעה, בבקשה","shoulkhan le'arba'a, bevakasha"],["je suis allergique","יש לי אלרגיה","yesh li alergya"],["sans sucre","בלי סוכר","bli soukar"],["avec plaisir, à ton service","בכיף","bekef"],["je reviens tout de suite","אני כבר חוזר","ani kvar khozer"],["attends-moi !","חכה לי!","khaké li!"],["on se voit quand ?","מתי נפגשים?","matay nifgashim?"],["on se retrouve où ?","איפה נפגשים?","éfo nifgashim?"],["quelle heure est-il ?","מה השעה?","ma hasha'a?"],["il est quelle heure maintenant ?","כמה השעה עכשיו?","kama hasha'a akhshav?"],["c'est fermé le chabbat","זה סגור בשבת","zé sagour beshabbat"],["quelle belle journée !","איזה יום יפה!","eyzé yom yafé!"],["il fait très chaud aujourd'hui","חם מאוד היום","kham méod hayom"],["je suis prêt","אני מוכן","ani moukhan"],["je n'ai pas compris","לא הבנתי","lo havanti"],["j'ai compris","הבנתי","havanti"],["encore une fois, s'il te plaît","עוד פעם, בבקשה","od pa'am, bevakasha"],["c'est à moi","זה שלי","zé sheli"],["c'est pour toi","זה בשבילך","zé bishvilkha"],["fais attention !","תיזהר!","tizahér!"],["attention !","זהירות!","zehirout!"],["silence !","שקט!","shéket!"],["vite !","מהר!","maher!"],["bonne idée","רעיון טוב","ra'ayon tov"],["j'arrive !","אני בא!","ani ba!"],["je suis là","אני פה","ani po"],["c'est tout","זה הכל","zé hakol"],["rien d'autre ?","עוד משהו?","od mashéhou?"],["merci, c'est tout","תודה, זה הכל","toda, zé hakol"]]},{"id":"he-argot","nom":"Expressions israéliennes","cards":[["allez ! on y va !","יאללה","yalla"],["super, cool","סבבה","sababa"],["génial, top","אחלה","akhla"],["le désordre, le bazar","בלגן","balagan"],["concrètement, droit au but","תכלס","takhles"],["exprès, justement","דווקא","davka"],["pour rien, juste comme ça","סתם","stam"],["mon chéri, ma vie (affectueux)","כפרה","kapara"],["mon frère, mon pote","אחי","akhi"],["ma sœur, ma copine","אחותי","akhoti"],["mon chéri / ma chérie (mon âme)","נשמה","neshama"],["sans problème","אין בעיה","eyn baaya"],["pas grave","לא נורא","lo nora"],["c'est pas grave, ça arrive","קורה","koré"],["attends une seconde","רגע","réga"],["une petite seconde","רק רגע","rak réga"],["tant mieux, enfin bref","בקיצור","bekitsour"],["en gros, en bref","בגדול","bigdol"],["vraiment ? sérieux ?","באמת?","beémet?"],["c'est fou ! incroyable !","מטורף","metoraf"],["pas de soucis, détends-toi","יהיה בסדר","yihyé beseder"],["tout ira bien","הכל יהיה בסדר","hakol yihyé beseder"],["c'est la vie, c'est comme ça","ככה זה","kakha zé"],["quoi ?","מה?","ma?"],["quoi ?! (étonnement)","מה פתאום?","ma pit'om?"],["n'importe quoi ! jamais de la vie !","מה פתאום!","ma pit'om!"],["dommage","חבל","khaval"],["dommage pour le temps (ça vaut le coup !)","חבל על הזמן","khaval al hazman"],["bravo, bien joué","כל הכבוד","kol hakavod"],["avec l'aide de Dieu","בעזרת השם","be'ezrat hashem"],["si Dieu le veut","אם ירצה השם","im yirtsé hashem"],["Dieu merci","ברוך השם","baroukh hashem"],["il n'y a pas le choix","אין ברירה","eyn brera"],["pas de chance, tant pis","באסה","basa"],["j'ai la flemme","אין לי כוח","eyn li koakh"],["j'en ai marre","נמאס לי","nimas li"],["ça ne me dérange pas","לא אכפת לי","lo ikhpat li"],["c'est pas mon problème","לא הבעיה שלי","lo habaaya sheli"],["ça vaut le coup","שווה","shavé"],["c'est bon, ça suffit","די","dai"],["ça suffit déjà !","די כבר!","dai kvar!"],["en route, partons","זזים","zazim"],["viens ! (à un homme)","בוא!","bo!"],["viens ! (à une femme)","בואי!","boï!"],["on verra","נראה","nir'é"],["tranquille, doucement","לאט לאט","lat lat"],["la débrouille, le système D","קומבינה","kombina"],["ne sois pas un pigeon !","אל תהיה פראייר!","al tihyé frayer!"],["fort, solide (un dur)","חזק","khazak"],["sois fort et courageux","חזק ואמץ","khazak ve'emats"],["c'est parti","מתחילים","matkhilim"],["quel est le problème ?","מה הבעיה?","ma habaaya?"],["qu'est-ce qui se passe ?","מה קרה?","ma kara?"],["laisse tomber","עזוב","azov"],["c'est moche, c'est nul","גרוע","garoua"],["trop bien !","מגניב","magniv"]]},{"id":"he-questions","nom":"Pronoms et questions","cards":[["je, moi","אני","ani"],["tu (homme)","אתה","ata"],["tu (femme)","את","at"],["il, lui","הוא","hou"],["elle","היא","hi"],["nous","אנחנו","anakhnou"],["vous (hommes ou groupe mixte)","אתם","atem"],["vous (femmes)","אתן","aten"],["ils","הם","hem"],["elles","הן","hen"],["mon, ma, à moi","שלי","sheli"],["ton, ta (à un homme)","שלך","shelkha"],["ton, ta (à une femme)","שלך","shelakh"],["son, sa (à lui)","שלו","shelo"],["son, sa (à elle)","שלה","shela"],["notre, à nous","שלנו","shelanou"],["leur, à eux","שלהם","shelahem"],["ce, ceci (masculin)","זה","zé"],["ceci (féminin)","זאת","zot"],["ceux-ci, celles-ci","אלה","élé"],["quoi ? que ?","מה?","ma?"],["qui ?","מי?","mi?"],["où ?","איפה?","éfo?"],["où ? (vers où)","לאן?","lean?"],["d'où ?","מאיפה?","méeyfo?"],["quand ?","מתי?","matay?"],["pourquoi ?","למה?","lama?"],["comment ?","איך?","eykh?"],["combien ?","כמה?","kama?"],["combien ça coûte ?","כמה זה עולה?","kama zé olé?"],["lequel ?","איזה?","eyzé?"],["laquelle ?","איזו?","eyzo?"],["quelle heure est-il ?","מה השעה?","ma hasha'a?"],["qu'est-ce que c'est ?","מה זה?","ma zé?"],["qui est-ce ?","מי זה?","mi zé?"],["il y a","יש","yesh"],["il n'y a pas","אין","eyn"],["j'ai","יש לי","yesh li"],["je n'ai pas","אין לי","eyn li"],["tu as ? (à un homme)","יש לך?","yesh lekha?"],["est-ce que… ? (question)","האם","haïm"],["c'est-à-dire","כלומר","klomar"]]},{"id":"he-petitsmots","nom":"Petits mots utiles","cards":[["ou","או","o"],["mais","אבל","aval"],["parce que","כי","ki"],["parce que (soutenu)","בגלל ש","biglal she"],["si (condition)","אם","im"],["alors, donc","אז","az"],["aussi","גם","gam"],["seulement, juste","רק","rak"],["très","מאוד","méod"],["trop","יותר מדי","yoter miday"],["plus","יותר","yoter"],["moins","פחות","pakhot"],["beaucoup","הרבה","harbé"],["un peu","קצת","ktsat"],["tout","הכל","hakol"],["tous, chaque","כל","kol"],["rien","כלום","kloum"],["quelque chose","משהו","mashéhou"],["quelqu'un","מישהו","mishéhou"],["personne","אף אחד","af ékhad"],["jamais","אף פעם","af pa'am"],["toujours","תמיד","tamid"],["parfois","לפעמים","lifamim"],["souvent","הרבה פעמים","harbé pe'amim"],["déjà","כבר","kvar"],["encore","עוד","od"],["pas encore","עוד לא","od lo"],["maintenant","עכשיו","akhshav"],["tout de suite","מיד","miyad"],["bientôt","בקרוב","bekarov"],["plus tard","אחר כך","akhar kakh"],["avant","לפני","lifné"],["après","אחרי","akharé"],["ici","פה","po"],["là-bas","שם","sham"],["près","קרוב","karov"],["loin","רחוק","rakhok"],["avec","עם","im"],["sans","בלי","bli"],["pour","בשביל","bishvil"],["sur","על","al"],["sous","מתחת","mitakhat"],["entre","בין","beyn"],["en face de","מול","moul"],["derrière","מאחורי","méakhoré"],["à côté de","ליד","leyad"],["dedans","בפנים","bifnim"],["dehors","בחוץ","bakhouts"],["en haut","למעלה","lemala"],["en bas","למטה","lemata"],["à droite","ימינה","yamina"],["à gauche","שמאלה","smola"],["tout droit","ישר","yashar"],["comme","כמו","kmo"],["ensemble","ביחד","beyakhad"],["seul, tout seul","לבד","levad"],["vraiment","באמת","beémet"],["en fait","בעצם","be'etsem"],["bien sûr (soutenu)","כמובן","kamouvan"],["surtout","במיוחד","bimyoukhad"],["presque","כמעט","kim'at"],["assez","מספיק","maspik"],["environ","בערך","be'érekh"],["ensuite, puis","ואז","veaz"],["par exemple","למשל","lemashal"],["grâce à","בזכות","bizkhout"],["à cause de","בגלל","biglal"],["malgré","למרות","lamrot"],["en même temps","בו זמנית","bo zmanit"],["de nouveau, encore une fois","שוב","shouv"],["d'abord","קודם","kodem"],["à la fin","בסוף","basof"],["au début","בהתחלה","bahatkhala"]]},{"id":"he-nombres","nom":"Les nombres","cards":[["zéro","אפס","éfes"],["un (féminin, pour compter)","אחת","akhat"],["deux (féminin, pour compter)","שתיים","shtayim"],["trois","שלוש","shalosh"],["quatre","ארבע","arba"],["cinq","חמש","khamesh"],["six","שש","shesh"],["sept","שבע","sheva"],["huit","שמונה","shmoné"],["neuf","תשע","tesha"],["dix","עשר","éser"],["onze","אחת עשרה","akhat esré"],["douze","שתים עשרה","shtem esré"],["treize","שלוש עשרה","shlosh esré"],["quinze","חמש עשרה","khamesh esré"],["vingt","עשרים","esrim"],["trente","שלושים","shloshim"],["quarante","ארבעים","arba'im"],["cinquante","חמישים","khamishim"],["soixante","שישים","shishim"],["soixante-dix","שבעים","shiv'im"],["quatre-vingts","שמונים","shmonim"],["quatre-vingt-dix","תשעים","tish'im"],["cent","מאה","méa"],["deux cents","מאתיים","matayim"],["mille","אלף","élef"],["deux mille","אלפיים","alpayim"],["un million","מיליון","milyon"],["un (masculin, ex. un garçon)","אחד","ékhad"],["deux (masculin, ex. deux garçons)","שניים","shnayim"],["premier","ראשון","rishon"],["deuxième","שני","shéni"],["troisième","שלישי","shlishi"],["la moitié","חצי","khétsi"],["un quart","רבע","réva"],["un numéro, un nombre","מספר","mispar"],["numéro de téléphone","מספר טלפון","mispar télefon"],["une fois","פעם אחת","pa'am akhat"],["deux fois","פעמיים","pa'amayim"],["le shekel (monnaie)","שקל","shékel"],["dix shekels","עשרה שקלים","asara shkalim"],["combien d'argent ?","כמה כסף?","kama késef?"]]},{"id":"he-temps","nom":"Le temps et le calendrier","cards":[["dimanche (yom rishon)","יום ראשון","yom rishon"],["lundi","יום שני","yom shéni"],["mardi","יום שלישי","yom shlishi"],["mercredi","יום רביעי","yom révi'i"],["jeudi","יום חמישי","yom khamishi"],["vendredi","יום שישי","yom shishi"],["samedi, chabbat","שבת","shabbat"],["le week-end (vendredi-samedi)","סוף שבוע","sof shavoua"],["un jour","יום","yom"],["une semaine","שבוע","shavoua"],["un mois","חודש","khodesh"],["une année","שנה","shana"],["aujourd'hui","היום","hayom"],["demain","מחר","makhar"],["hier","אתמול","etmol"],["après-demain","מחרתיים","mokhortayim"],["avant-hier","שלשום","shilshom"],["le matin","בוקר","boker"],["le midi","צהריים","tsohorayim"],["l'après-midi","אחר הצהריים","akhar hatsohorayim"],["le soir","ערב","érev"],["la nuit","לילה","layla"],["ce soir","הערב","ha'érev"],["cette nuit","הלילה","halayla"],["la semaine prochaine","שבוע הבא","shavoua haba"],["la semaine dernière","שבוע שעבר","shavoua she'avar"],["l'année prochaine","שנה הבאה","shana haba'a"],["une heure (durée)","שעה","sha'a"],["une minute","דקה","daka"],["une seconde","שנייה","shniya"],["une demi-heure","חצי שעה","khatsi sha'a"],["un quart d'heure","רבע שעה","réva sha'a"],["à quelle heure ?","באיזו שעה?","be'eyzo sha'a?"],["à huit heures","בשמונה","bishmoné"],["tôt","מוקדם","moukdam"],["tard","מאוחר","méoukhar"],["en retard","באיחור","be'ikhour"],["à l'heure","בזמן","bazman"],["le temps (qui passe)","זמן","zman"],["je n'ai pas le temps","אין לי זמן","eyn li zman"],["la date","תאריך","taarikh"],["janvier","ינואר","yanouar"],["février","פברואר","februar"],["mars","מרץ","merts"],["avril","אפריל","april"],["mai","מאי","may"],["juin","יוני","youni"],["juillet","יולי","youli"],["août","אוגוסט","ogoust"],["septembre","ספטמבר","september"],["octobre","אוקטובר","oktober"],["novembre","נובמבר","november"],["décembre","דצמבר","detsember"],["l'été","קיץ","kayits"],["l'hiver","חורף","khoref"],["le printemps","אביב","aviv"],["l'automne","סתיו","stav"],["une fête","חג","khag"],["les vacances","חופש","khofesh"],["l'anniversaire","יום הולדת","yom houledet"]]},{"id":"he-famille","nom":"Famille et personnes","cards":[["la famille","משפחה","mishpakha"],["papa","אבא","aba"],["maman","אמא","ima"],["les parents","הורים","horim"],["le père","אב","av"],["la mère","אם","em"],["le frère","אח","akh"],["la sœur","אחות","akhot"],["les frères et sœurs","אחים","akhim"],["le fils","בן","ben"],["la fille (enfant de)","בת","bat"],["les enfants (fils et filles)","ילדים","yeladim"],["un garçon, un enfant","ילד","yéled"],["une fille, une enfant","ילדה","yalda"],["un bébé","תינוק","tinok"],["le grand-père","סבא","saba"],["la grand-mère","סבתא","savta"],["les grands-parents","סבא וסבתא","saba vesavta"],["le petit-fils","נכד","nekhed"],["la petite-fille","נכדה","nekhda"],["l'oncle","דוד","dod"],["la tante","דודה","doda"],["le cousin","בן דוד","ben dod"],["la cousine","בת דודה","bat doda"],["le mari","בעל","ba'al"],["la femme, l'épouse","אישה","isha"],["mon mari","בעלי","ba'ali"],["ma femme","אשתי","ishti"],["un homme","גבר","guéver"],["une femme","אישה","isha"],["une personne","אדם","adam"],["les gens","אנשים","anashim"],["un ami","חבר","khaver"],["une amie","חברה","khavera"],["les amis","חברים","khaverim"],["le voisin","שכן","shakhen"],["la voisine","שכנה","shkhena"],["un jeune homme, un ado","נער","na'ar"],["une jeune fille, une ado","נערה","na'ara"],["les jeunes","צעירים","tse'irim"],["un vieil homme","זקן","zaken"],["une vieille dame","זקנה","zkena"],["un invité","אורח","oréakh"],["monsieur","אדון","adon"],["madame","גברת","guéveret"],["le nom","שם","shem"],["le nom de famille","שם משפחה","shem mishpakha"],["l'âge","גיל","guil"],["quel âge as-tu ? (à un homme)","בן כמה אתה?","ben kama ata?"],["quel âge as-tu ? (à une femme)","בת כמה את?","bat kama at?"],["j'ai dix ans (garçon)","אני בן עשר","ani ben éser"],["j'ai neuf ans (fille)","אני בת תשע","ani bat tesha"],["marié","נשוי","nassouy"],["le mariage","חתונה","khatouna"],["la bar-mitsva","בר מצווה","bar mitsva"]]},{"id":"he-verbes","nom":"Les verbes","cards":[["être","להיות","lihyot"],["faire","לעשות","la'assot"],["aller","ללכת","lalekhet"],["venir","לבוא","lavo"],["arriver","להגיע","lehaguia"],["partir, sortir","לצאת","latset"],["entrer","להיכנס","lehikanes"],["rentrer, revenir","לחזור","lakhzor"],["rester","להישאר","lehisha'er"],["voyager, rouler","לנסוע","linso'a"],["courir","לרוץ","larouts"],["marcher, se promener","לטייל","letayel"],["s'asseoir","לשבת","lashévet"],["se lever","לקום","lakoum"],["dormir","לישון","lishon"],["se réveiller","להתעורר","lehit'orer"],["manger","לאכול","le'ekhol"],["boire","לשתות","lishtot"],["cuisiner","לבשל","levashel"],["dire","להגיד","lehaguid"],["parler","לדבר","ledaber"],["raconter","לספר","lessaper"],["demander","לשאול","lishol"],["répondre","לענות","la'anot"],["appeler (au téléphone)","להתקשר","lehitkasher"],["crier","לצעוק","litsok"],["écouter","להקשיב","lehakshiv"],["entendre","לשמוע","lishmoa"],["voir","לראות","lir'ot"],["regarder","להסתכל","lehistakel"],["lire","לקרוא","likro"],["écrire","לכתוב","likhtov"],["apprendre, étudier","ללמוד","lilmod"],["enseigner","ללמד","lelamed"],["comprendre","להבין","lehavin"],["savoir","לדעת","lada'at"],["connaître","להכיר","lehakir"],["penser","לחשוב","lakhshov"],["se souvenir","לזכור","lizkor"],["oublier","לשכוח","lishko'akh"],["croire","להאמין","leha'amin"],["vouloir","לרצות","lirtsot"],["pouvoir (je peux)","אני יכול","ani yakhol"],["aimer","לאהוב","le'ehov"],["détester","לשנוא","lisno"],["préférer","להעדיף","leha'adif"],["avoir besoin","להצטרך","lehitstarekh"],["devoir (il faut)","צריך","tsarikh"],["essayer","לנסות","lenassot"],["commencer","להתחיל","lehatkhil"],["finir","לגמור","ligmor"],["terminer (soutenu)","לסיים","lessayem"],["continuer","להמשיך","lehamshikh"],["attendre","לחכות","lekhakot"],["chercher","לחפש","lekhapes"],["trouver","למצוא","limtso"],["perdre","לאבד","le'abed"],["gagner (un jeu)","לנצח","lenatséakh"],["jouer","לשחק","lessakhek"],["chanter","לשיר","lashir"],["danser","לרקוד","lirkod"],["rire","לצחוק","litskhok"],["pleurer","לבכות","livkot"],["sourire","לחייך","lekhayekh"],["acheter","לקנות","liknot"],["vendre","למכור","limkor"],["payer","לשלם","leshalem"],["coûter","לעלות","la'alot"],["donner","לתת","latet"],["prendre","לקחת","lakakhat"],["apporter","להביא","lehavi"],["envoyer","לשלוח","lishlo'akh"],["recevoir","לקבל","lekabel"],["mettre, poser","לשים","lassim"],["ouvrir","לפתוח","liftoakh"],["fermer","לסגור","lisgor"],["allumer","להדליק","lehadlik"],["éteindre","לכבות","lekhabot"],["laver","לשטוף","lishtof"],["se laver, se doucher","להתקלח","lehitkale'akh"],["nettoyer","לנקות","lenakot"],["s'habiller","להתלבש","lehitlabesh"],["porter (un vêtement)","ללבוש","lilbosh"],["travailler","לעבוד","la'avod"],["aider","לעזור","la'azor"],["utiliser","להשתמש","lehishtamesh"],["réparer","לתקן","letaken"],["construire","לבנות","livnot"],["casser","לשבור","lishbor"],["habiter","לגור","lagour"],["vivre","לחיות","likhyot"],["mourir","למות","lamout"],["naître","להיוולד","lehivaled"],["grandir","לגדול","ligdol"],["changer","לשנות","leshanot"],["choisir","לבחור","livkhor"],["décider","להחליט","lehakhlit"],["montrer","להראות","leharot"],["expliquer","להסביר","lehasbir"],["traduire","לתרגם","letargem"],["compter","לספור","lispor"],["dessiner","לצייר","letsayer"],["nager","לשחות","liskhot"],["conduire","לנהוג","linhog"],["voler (en avion)","לטוס","latous"],["monter","לעלות","la'alot"],["descendre","לרדת","larédet"],["tomber","ליפול","lipol"],["porter (un objet)","לסחוב","liskhov"],["tenir","להחזיק","lehakhzik"],["jeter","לזרוק","lizrok"],["tirer","למשוך","limshokh"],["pousser","לדחוף","lidkhof"],["toucher","לגעת","laga'at"],["sentir (une odeur)","להריח","lehari'akh"],["goûter","לטעום","lit'om"],["se sentir","להרגיש","lehargish"],["avoir peur","לפחד","lefakhed"],["se fâcher","לכעוס","lik'os"],["s'inquiéter","לדאוג","lid'og"],["se reposer","לנוח","lanoua'h"],["rêver","לחלום","lakhlom"],["espérer","לקוות","lekavot"],["remercier","להודות","lehodot"],["pardonner","לסלוח","lisloakh"],["s'excuser","להתנצל","lehitnatsel"],["inviter, commander","להזמין","lehazmin"],["rencontrer","לפגוש","lifgosh"],["se marier","להתחתן","lehitkhaten"],["fêter","לחגוג","lakhgog"],["prier","להתפלל","lehitpalel"],["fermer à clé","לנעול","lin'ol"],["garder, surveiller","לשמור","lishmor"],["promettre","להבטיח","lehavtiakh"],["permettre","להרשות","leharshot"],["interdire","לאסור","le'essor"],["ressembler","להיראות כמו","lehera'ot kmo"],["sembler, avoir l'air","להיראות","lehera'ot"],["arrêter (de faire)","להפסיק","lehafsik"],["s'arrêter","לעצור","la'atsor"],["tourner","לפנות","lifnot"],["retourner, rendre","להחזיר","lehakhzir"],["emprunter","ללוות","lilvot"],["envoyer un message","לשלוח הודעה","lishlo'akh hoda'a"],["photographier","לצלם","letsalem"],["téléphoner","לטלפן","letalfen"]]},{"id":"he-nourriture","nom":"Nourriture et boissons","cards":[["la nourriture","אוכל","okhel"],["manger","לאכול","le'ekhol"],["boire","לשתות","lishtot"],["le petit-déjeuner","ארוחת בוקר","aroukhat boker"],["le déjeuner","ארוחת צהריים","aroukhat tsohorayim"],["le dîner","ארוחת ערב","aroukhat érev"],["un repas","ארוחה","aroukha"],["l'eau","מים","mayim"],["de l'eau, s'il vous plaît","מים, בבקשה","mayim, bevakasha"],["le pain","לחם","lekhem"],["la pita","פיתה","pita"],["la hallah (pain du chabbat)","חלה","khala"],["le beurre","חמאה","khem'a"],["le fromage","גבינה","gvina"],["le fromage blanc","גבינה לבנה","gvina levana"],["le lait","חלב","khalav"],["le yaourt","יוגורט","yogourt"],["un œuf","ביצה","beytsa"],["les œufs","ביצים","beytsim"],["la viande","בשר","bassar"],["le poulet","עוף","of"],["le poisson","דג","dag"],["le riz","אורז","orez"],["les pâtes","פסטה","pasta"],["la soupe","מרק","marak"],["la salade","סלט","salat"],["le houmous","חומוס","khoumous"],["le falafel","פלאפל","falafel"],["le shawarma","שווארמה","shawarma"],["la tehina","טחינה","tkhina"],["la shakshouka","שקשוקה","shakshouka"],["les légumes","ירקות","yerakot"],["la tomate","עגבנייה","agvaniya"],["le concombre","מלפפון","melafefon"],["l'oignon","בצל","batsal"],["l'ail","שום","shoum"],["la pomme de terre","תפוח אדמה","tapouakh adama"],["la carotte","גזר","gézer"],["le poivron","פלפל","pilpel"],["les fruits","פירות","pérot"],["la pomme","תפוח","tapouakh"],["la banane","בננה","banana"],["l'orange","תפוז","tapouz"],["le raisin","ענבים","anavim"],["la pastèque","אבטיח","avatiakh"],["la fraise","תות","tout"],["la grenade","רימון","rimon"],["la datte","תמר","tamar"],["l'olive","זית","zayit"],["le citron","לימון","limon"],["le sel","מלח","melakh"],["le poivre","פלפל שחור","pilpel shakhor"],["le sucre","סוכר","soukar"],["l'huile","שמן","shémen"],["le miel","דבש","dvash"],["le gâteau","עוגה","ouga"],["le chocolat","שוקולד","shokolad"],["la glace","גלידה","glida"],["les bonbons","ממתקים","mamtakim"],["le café","קפה","kafé"],["un café au lait","קפה הפוך","kafé hafoukh"],["le thé","תה","té"],["le jus","מיץ","mits"],["le jus d'orange","מיץ תפוזים","mits tapouzim"],["le vin","יין","yayin"],["la bière","בירה","bira"],["une boisson","משקה","mashké"],["chaud (pour un plat)","חם","kham"],["froid","קר","kar"],["délicieux, bon","טעים","ta'im"],["c'est très bon !","טעים מאוד!","ta'im méod!"],["sucré","מתוק","matok"],["salé","מלוח","malouakh"],["épicé, piquant","חריף","kharif"],["végétarien","צמחוני","tsimkhoni"],["casher","כשר","kasher"],["le restaurant","מסעדה","mis'ada"],["la carte, le menu","תפריט","tafrit"],["le serveur","מלצר","meltsar"],["la serveuse","מלצרית","meltsarit"],["l'addition, s'il vous plaît","חשבון, בבקשה","kheshbon, bevakasha"],["une table pour deux","שולחן לשניים","shoulkhan lishnayim"],["à emporter","לקחת","lakakhat"],["une assiette","צלחת","tsalakhat"],["un verre","כוס","kos"],["une fourchette","מזלג","mazleg"],["un couteau","סכין","sakin"],["une cuillère","כף","kaf"]]},{"id":"he-adjectifs","nom":"Couleurs et adjectifs","cards":[["une couleur","צבע","tseva"],["blanc","לבן","lavan"],["noir","שחור","shakhor"],["rouge","אדום","adom"],["bleu","כחול","kakhol"],["vert","ירוק","yarok"],["jaune","צהוב","tsahov"],["orange (couleur)","כתום","katom"],["rose","ורוד","varod"],["violet","סגול","sagol"],["marron","חום","khoum"],["gris","אפור","afor"],["bleu ciel","תכלת","tkhelet"],["grand, gros","גדול","gadol"],["grande","גדולה","gdola"],["petit","קטן","katan"],["petite","קטנה","ktana"],["beau, bien","יפה","yafé"],["belle","יפה","yafa"],["moche","מכוער","mekho'ar"],["bon, bien","טוב","tov"],["bonne","טובה","tova"],["mauvais","רע","ra"],["nouveau","חדש","khadash"],["nouvelle","חדשה","khadasha"],["vieux (objet)","ישן","yashan"],["vieux (personne)","זקן","zaken"],["jeune","צעיר","tsa'ir"],["long","ארוך","arokh"],["court","קצר","katsar"],["haut, grand (taille)","גבוה","gavoha"],["bas, petit (taille)","נמוך","namoukh"],["lourd","כבד","kaved"],["léger","קל","kal"],["facile","קל","kal"],["difficile","קשה","kashé"],["chaud","חם","kham"],["froid","קר","kar"],["rapide","מהיר","mahir"],["lent","איטי","iti"],["cher","יקר","yakar"],["pas cher","זול","zol"],["gratuit","חינם","khinam"],["plein","מלא","malé"],["vide","ריק","reyk"],["propre","נקי","naki"],["sale","מלוכלך","melukhlakh"],["ouvert","פתוח","patouakh"],["fermé","סגור","sagour"],["riche","עשיר","ashir"],["pauvre","עני","ani"],["fort","חזק","khazak"],["faible","חלש","khalash"],["intelligent","חכם","khakham"],["gentil","נחמד","nekhmad"],["gentille","נחמדה","nekhmada"],["drôle","מצחיק","matskhik"],["calme","שקט","shaket"],["bruyant","רועש","ro'esh"],["heureux","שמח","saméakh"],["heureuse","שמחה","smékha"],["triste","עצוב","atsouv"],["important","חשוב","khashouv"],["intéressant","מעניין","me'anyen"],["ennuyeux","משעמם","mesha'amem"],["prêt","מוכן","moukhan"],["occupé","עסוק","asouk"],["libre","פנוי","panouy"],["juste, correct","נכון","nakhon"],["faux","לא נכון","lo nakhon"],["possible","אפשר","efshar"],["impossible","אי אפשר","i efshar"],["interdit","אסור","assour"],["permis","מותר","moutar"],["différent","שונה","shoné"],["le même","אותו דבר","oto davar"],["dernier","אחרון","akharon"],["spécial","מיוחד","meyoukhad"],["dangereux","מסוכן","messoukan"],["sûr, en sécurité","בטוח","batouakh"],["parfait","מושלם","moushlam"]]},{"id":"he-ville","nom":"Ville et transports","cards":[["la ville","עיר","ir"],["le village","כפר","kfar"],["le pays","ארץ","érets"],["Israël","ישראל","israël"],["Jérusalem","ירושלים","yeroushalayim"],["Tel-Aviv","תל אביב","tel aviv"],["la rue","רחוב","rekhov"],["la route","כביש","kvish"],["le chemin","דרך","dérekh"],["le quartier","שכונה","shkhouna"],["la place","כיכר","kikar"],["le centre-ville","מרכז העיר","merkaz ha'ir"],["le magasin","חנות","khanout"],["le supermarché","סופרמרקט","supermarket"],["le marché","שוק","shouk"],["la banque","בנק","bank"],["la poste","דואר","do'ar"],["l'école","בית ספר","beit séfer"],["la synagogue","בית כנסת","beit knéset"],["le parc","פארק","park"],["la plage","חוף","khof"],["la mer","ים","yam"],["la mairie","עירייה","iriya"],["l'hôtel","מלון","malon"],["le musée","מוזיאון","mouzéon"],["le cinéma","קולנוע","kolno'a"],["la gare","תחנת רכבת","takhanat rakévet"],["l'arrêt de bus","תחנת אוטובוס","takhanat otobous"],["le bus","אוטובוס","otobous"],["le train","רכבת","rakévet"],["le taxi","מונית","monit"],["le taxi collectif (sherout)","שירות","sherout"],["la voiture","מכונית","mekhonit"],["la voiture (familier)","אוטו","oto"],["le vélo","אופניים","ofanayim"],["l'avion","מטוס","matos"],["l'aéroport","שדה תעופה","sdé te'oufa"],["le billet","כרטיס","kartis"],["la carte de transport (Rav-Kav)","רב קו","rav kav"],["le feu rouge","רמזור","ramzor"],["le parking","חניה","khanaya"],["l'essence","דלק","délek"],["l'adresse","כתובת","ktovet"],["le plan, la carte","מפה","mapa"],["à pied","ברגל","baréguel"],["où est… ?","איפה… ?","éfo… ?"],["comment aller à… ?","איך מגיעים ל…?","eykh maguiim le…?"],["c'est loin ?","זה רחוק?","zé rakhok?"],["c'est près d'ici","זה קרוב לפה","zé karov lepo"],["arrête-toi ici, s'il te plaît","תעצור פה, בבקשה","ta'atsor po, bevakasha"],["le nord","צפון","tsafon"],["le sud","דרום","darom"],["l'est","מזרח","mizrakh"],["l'ouest","מערב","ma'arav"],["le désert","מדבר","midbar"],["la montagne","הר","har"]]},{"id":"he-maison","nom":"La maison","cards":[["la maison","בית","bayit"],["à la maison","בבית","babayit"],["un appartement","דירה","dira"],["une chambre, une pièce","חדר","khéder"],["la chambre à coucher","חדר שינה","khadar shena"],["le salon","סלון","salon"],["la cuisine","מטבח","mitbakh"],["la salle de bain","חדר אמבטיה","khadar ambatya"],["les toilettes","שירותים","sheroutim"],["où sont les toilettes ?","איפה השירותים?","éfo hasheroutim?"],["le balcon","מרפסת","mirpéset"],["le jardin","גינה","guina"],["la porte","דלת","délet"],["la fenêtre","חלון","khalon"],["le mur","קיר","kir"],["le toit","גג","gag"],["l'escalier","מדרגות","madregot"],["l'ascenseur","מעלית","ma'alit"],["l'étage","קומה","koma"],["la clé","מפתח","mafte'akh"],["la table","שולחן","shoulkhan"],["la chaise","כיסא","kissé"],["le lit","מיטה","mita"],["le canapé","ספה","sapa"],["l'armoire","ארון","aron"],["la lampe","מנורה","menora"],["la lumière","אור","or"],["la télévision","טלוויזיה","televizya"],["l'ordinateur","מחשב","makhshev"],["le téléphone","טלפון","télefon"],["le portable","פלאפון","pelefon"],["le réfrigérateur","מקרר","mekarer"],["le four","תנור","tanour"],["le lave-linge","מכונת כביסה","mekhonat kvissa"],["la douche","מקלחת","miklakhat"],["la serviette","מגבת","magévet"],["le savon","סבון","sabon"],["le miroir","מראה","mar'a"],["le livre","ספר","séfer"],["le sac","תיק","tik"],["le stylo","עט","et"],["le papier","נייר","nayar"],["la boîte","קופסה","koufsa"],["la poubelle","פח","pakh"],["le climatiseur","מזגן","mazgan"],["la pièce sécurisée (mamad)","ממ\"ד","mamad"],["l'abri","מקלט","miklat"],["le loyer","שכר דירה","skhar dira"]]},{"id":"he-corps","nom":"Le corps et la santé","cards":[["le corps","גוף","gouf"],["la tête","ראש","rosh"],["les cheveux","שיער","sé'ar"],["le visage","פנים","panim"],["l'œil","עין","ayin"],["les yeux","עיניים","eynayim"],["l'oreille","אוזן","ozen"],["le nez","אף","af"],["la bouche","פה","pé"],["les dents","שיניים","shinayim"],["une dent","שן","shen"],["la langue","לשון","lashon"],["le cou","צוואר","tsavar"],["l'épaule","כתף","katef"],["le bras","זרוע","zroa"],["la main","יד","yad"],["les mains","ידיים","yadayim"],["le doigt","אצבע","etsba"],["le ventre","בטן","béten"],["le dos","גב","gav"],["la jambe, le pied","רגל","réguel"],["les pieds, les jambes","רגליים","raglayim"],["le genou","ברך","bérekh"],["le cœur","לב","lev"],["le sang","דם","dam"],["la peau","עור","or"],["la santé","בריאות","briout"],["en bonne santé","בריא","bari"],["malade (homme)","חולה","kholé"],["malade (femme)","חולה","kholah"],["je suis malade","אני חולה","ani kholé"],["j'ai mal","כואב לי","koev li"],["j'ai mal à la tête","כואב לי הראש","koev li harosh"],["j'ai mal au ventre","כואבת לי הבטן","koevet li habéten"],["la douleur","כאב","ké'ev"],["la fièvre","חום","khom"],["un rhume","הצטננות","hitstanenout"],["la toux","שיעול","shi'oul"],["une allergie","אלרגיה","alergya"],["le médecin","רופא","rofé"],["la doctoresse","רופאה","rof'a"],["l'infirmier","אח","akh"],["l'infirmière","אחות","akhot"],["la pharmacie","בית מרקחת","beit mirkakhat"],["le pharmacien","רוקח","rokéakh"],["la pharmacienne","רוקחת","rokakhat"],["un médicament","תרופה","troufa"],["une ordonnance","מרשם","mirsham"],["un comprimé","כדור","kadour"],["l'hôpital","בית חולים","beit kholim"],["les urgences","מיון","miyoun"],["une ambulance","אמבולנס","ambulans"],["le dentiste","רופא שיניים","rofé shinayim"],["un rendez-vous (médical)","תור","tor"],["la caisse d'assurance maladie (kupat holim)","קופת חולים","koupat kholim"],["fatigué","עייף","ayef"],["fatiguée","עייפה","ayéfa"],["j'ai faim","אני רעב","ani ra'év"],["j'ai soif","אני צמא","ani tsamé"],["au secours !","הצילו!","hatsilou!"],["appelez une ambulance !","תזמינו אמבולנס!","tazminou ambulans!"]]},{"id":"he-emotions","nom":"Émotions et sentiments","cards":[["je t'aime (à un homme)","אני אוהב אותך","ani ohev otkha"],["je t'aime (à une femme)","אני אוהב אותך","ani ohev otakh"],["l'amour","אהבה","ahava"],["la joie","שמחה","simkha"],["la tristesse","עצב","étsev"],["la peur","פחד","pakhad"],["la colère","כעס","ka'as"],["j'ai peur","אני מפחד","ani mefakhed"],["je suis content","אני שמח","ani saméakh"],["je suis triste","אני עצוב","ani atsouv"],["je suis en colère","אני כועס","ani ko'es"],["je suis fatigué","אני עייף","ani ayef"],["je m'ennuie","משעמם לי","mesha'amem li"],["je suis stressé","אני בלחץ","ani belakhats"],["je suis surpris","אני מופתע","ani mouft'a"],["je suis fier de toi","אני גאה בך","ani gué'é bekha"],["tu me manques","אני מתגעגע אליך","ani mitga'agué'a élékha"],["j'aime ça","אני אוהב את זה","ani ohev et zé"],["je n'aime pas ça","אני לא אוהב את זה","ani lo ohev et zé"],["c'est amusant","כיף","kef"],["quel plaisir !","איזה כיף!","eyzé kef!"],["quelle honte","בושה","bousha"],["le calme, la tranquillité","שקט","shéket"],["l'espoir","תקווה","tikva"],["la chance","מזל","mazal"],["le bonheur","אושר","osher"]]},{"id":"he-ecole","nom":"École et travail","cards":[["l'élève (garçon)","תלמיד","talmid"],["l'élève (fille)","תלמידה","talmida"],["le professeur","מורה","moré"],["la professeure","מורה","mora"],["la classe","כיתה","kita"],["le cours, la leçon","שיעור","shi'our"],["les devoirs","שיעורי בית","shi'ouré bayit"],["le cahier","מחברת","makhbéret"],["le crayon","עיפרון","iparon"],["la gomme","מחק","mekhak"],["la règle","סרגל","sargel"],["le cartable","ילקוט","yalkout"],["l'examen, le contrôle","מבחן","mivkhan"],["la note","ציון","tsiyoun"],["la récréation","הפסקה","hafsaka"],["le tableau","לוח","lou'akh"],["une question","שאלה","she'ela"],["une réponse","תשובה","tshouva"],["un mot","מילה","mila"],["une phrase","משפט","mishpat"],["une langue","שפה","safa"],["l'hébreu","עברית","ivrit"],["le français","צרפתית","tsarfatit"],["l'anglais","אנגלית","anglit"],["les mathématiques","מתמטיקה","matematika"],["l'histoire","היסטוריה","historya"],["l'université","אוניברסיטה","ouniversita"],["le jardin d'enfants","גן","gan"],["le travail","עבודה","avoda"],["le bureau","משרד","misrad"],["le patron","בוס","bos"],["un collègue","עמית","amit"],["une réunion","פגישה","pguisha"],["l'argent","כסף","késef"],["le salaire","משכורת","maskoret"],["un métier","מקצוע","miktso'a"],["l'avocat","עורך דין","orekh din"],["l'ingénieur","מהנדס","mehandes"],["le policier","שוטר","shoter"],["le soldat","חייל","khayal"],["la soldate","חיילת","khayélet"],["l'armée (Tsahal)","צבא","tsava"],["le vendeur","מוכר","mokher"],["le chauffeur","נהג","nahag"]]},{"id":"he-nature","nom":"Nature, météo et animaux","cards":[["le soleil","שמש","shémesh"],["la lune","ירח","yaréakh"],["les étoiles","כוכבים","kokhavim"],["le ciel","שמיים","shamayim"],["le nuage","ענן","anan"],["la pluie","גשם","guéshem"],["il pleut","יורד גשם","yored guéshem"],["le vent","רוח","rouakh"],["la neige","שלג","shéleg"],["la chaleur","חום","khom"],["il fait chaud","חם","kham"],["il fait froid","קר","kar"],["quel temps fait-il ?","מה מזג האוויר?","ma mézeg ha'avir?"],["la météo","מזג אוויר","mézeg avir"],["l'air","אוויר","avir"],["la terre, le sol","אדמה","adama"],["la Terre (planète)","כדור הארץ","kadour ha'arets"],["le monde","עולם","olam"],["l'arbre","עץ","ets"],["la fleur","פרח","pérakh"],["l'herbe","דשא","désheh"],["la pierre","אבן","éven"],["le feu","אש","esh"],["la rivière","נהר","nahar"],["le lac","אגם","agam"],["la forêt","יער","ya'ar"],["le sable","חול","khol"],["l'animal","חיה","khaya"],["le chien","כלב","kélev"],["le chat","חתול","khatoul"],["l'oiseau","ציפור","tsipor"],["le poisson","דג","dag"],["le cheval","סוס","sous"],["la vache","פרה","para"],["le mouton","כבש","kéves"],["la chèvre","עז","ez"],["le chameau","גמל","gamal"],["le lion","אריה","arié"],["l'ours","דוב","dov"],["le singe","קוף","kof"],["l'éléphant","פיל","pil"],["le serpent","נחש","nakhash"],["la souris","עכבר","akhbar"],["le lapin","ארנב","arnav"],["le papillon","פרפר","parpar"],["l'abeille","דבורה","dvora"],["la fourmi","נמלה","nemala"],["la tortue","צב","tsav"]]},{"id":"he-vetements","nom":"Vêtements et courses","cards":[["les vêtements","בגדים","bgadim"],["la chemise, le t-shirt","חולצה","khoultsa"],["le pantalon","מכנסיים","mikhnassayim"],["la jupe","חצאית","khatsa'it"],["la robe","שמלה","simla"],["le manteau","מעיל","me'il"],["le pull","סוודר","sveder"],["les chaussures","נעליים","na'alayim"],["les sandales","סנדלים","sandalim"],["les chaussettes","גרביים","garbayim"],["le chapeau","כובע","kova"],["les lunettes","משקפיים","mishkafayim"],["les lunettes de soleil","משקפי שמש","mishkéfé shémesh"],["la montre","שעון","sha'on"],["le maillot de bain","בגד ים","béguéd yam"],["la taille (vêtement)","מידה","mida"],["les courses","קניות","kniyot"],["faire les courses","לעשות קניות","la'assot kniyot"],["combien ça coûte ?","כמה זה עולה?","kama zé olé?"],["c'est trop cher","זה יקר מדי","zé yakar miday"],["il y a une réduction ?","יש הנחה?","yesh hanakha?"],["les soldes, une réduction","הנחה","hanakha"],["je voudrais acheter…","אני רוצה לקנות…","ani rotsé liknot…"],["je cherche…","אני מחפש…","ani mekhapes…"],["je peux essayer ?","אפשר למדוד?","efshar limdod?"],["la caisse","קופה","koupa"],["le reçu","קבלה","kabala"],["la carte de crédit","כרטיס אשראי","kartis ashrai"],["en espèces","מזומן","mezouman"],["un sac (plastique)","שקית","sakit"],["ouvert / fermé (magasin)","פתוח / סגור","patouakh / sagour"]]}];
+
+/* ---------- Cartes et mémoire ---------- */
+const CARDS = [];
+for (const t of DATA) for (const [fr, he, tr] of t.cards) CARDS.push({ id: t.id + '|' + he + '|' + fr, theme: t.id, fr, he, tr });
+const KEY = 'aleph-v1';
+let st = { boxes: {}, prefs: { dir: 'fr-he', len: 20 } };
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.boxes) st = { ...st, ...s, prefs: { ...st.prefs, ...s.prefs } }; } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+const box = id => (st.boxes[id] && st.boxes[id].b) || 0;
+const seen = id => !!st.boxes[id];
+function record(id, ok) {
+  const b = st.boxes[id] || { b: 0, ok: 0, ko: 0 };
+  if (ok) { b.b = Math.min(5, b.b + 1); b.ok++; } else { b.b = 0; b.ko++; }
+  b.t = Date.now(); st.boxes[id] = b; save();
+}
+// intervalles de révision par boîte (en heures)
+const WAIT = [0, 4, 24, 72, 168, 480];
+const due = c => { const b = st.boxes[c.id]; return b && Date.now() - b.t >= WAIT[b.b] * 3600e3; };
+
+/* ---------- Comparaison des réponses ---------- */
+const NUM = { 'אפס': '0', 'אחת': '1', 'אחד': '1', 'שתיים': '2', 'שניים': '2', 'שלוש': '3', 'ארבע': '4', 'חמש': '5', 'שש': '6', 'שבע': '7', 'שמונה': '8', 'תשע': '9', 'עשר': '10', 'עשרים': '20', 'שלושים': '30', 'ארבעים': '40', 'חמישים': '50', 'שישים': '60', 'שבעים': '70', 'שמונים': '80', 'תשעים': '90', 'מאה': '100', 'אלף': '1000' };
+const normHe = s => s.replace(/[֑-ׇ]/g, '').replace(/[?!.,:;"'״׳…()\-־]/g, ' ').replace(/\s+/g, ' ').trim();
+const normFr = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\([^)]*\)/g, ' ')
+  .replace(/[?!.,:;"«»…'’\-]/g, ' ').replace(/\b(le|la|les|l|un|une|des|du|de|d)\b/g, ' ').replace(/\s+/g, ' ').trim();
+function lev(a, b) {
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+function close(said, exp) {
+  if (!said || !exp) return false;
+  const a = said.replace(/ /g, ''), b = exp.replace(/ /g, '');
+  if (a === b) return true;
+  if (b.length >= 3 && a.includes(b)) return true;
+  if (b.length <= 3) return false;
+  return 1 - lev(a, b) / Math.max(a.length, b.length) >= 0.78;
+}
+function expectedOptions(c, lang) {
+  if (lang === 'he') return c.he.split('/').map(normHe).filter(Boolean);
+  const base = c.fr.replace(/\([^)]*\)/g, ' ');
+  return base.split(/,|\/| ou /).map(normFr).filter(x => x.length > 1).concat([normFr(c.fr)]);
+}
+function judge(alts, c, lang) {
+  const opts = expectedOptions(c, lang);
+  for (const raw of alts) {
+    const s = lang === 'he' ? normHe(raw) : normFr(raw);
+    if (lang === 'he' && /^\d+$/.test(s.replace(/ /g, '')) && opts.some(o => NUM[o] === s.replace(/ /g, ''))) return true;
+    if (opts.some(o => close(s, o))) return true;
+  }
+  return false;
+}
+const isDontKnow = s => /לא יוד|אין לי מושג|דלג|תדלג|ne sais pas|sais pas|passe/.test(s);
+const isRepeat = s => /עוד פעם|שוב|תחזור|encore|répète/.test(s);
+const isStop = s => /^(עצור|תעצור|די|stop|pause|arrête)$/i.test(normHe(s)) || /(^| )עצור( |$)/.test(normHe(s));
+const isRight = s => /נכון|c.?était juste/.test(s);
+
+/* ---------- Voix ---------- */
+const synth = window.speechSynthesis;
+let vHe = null, vFr = null;
+function pickVoices() {
+  if (!synth) return;
+  const vs = synth.getVoices();
+  const pref = v => (/google|natural|premium|enhanced|carmit|amélior/i.test(v.name) ? 1 : 0);
+  vHe = vs.filter(v => /^(he|iw)([-_]|$)/i.test(v.lang)).sort((a, b) => pref(b) - pref(a))[0] || null;
+  vFr = vs.filter(v => /^fr[-_]FR/i.test(v.lang)).sort((a, b) => pref(b) - pref(a))[0] || vs.find(v => /^fr/i.test(v.lang)) || null;
+}
+if (synth) { pickVoices(); synth.onvoiceschanged = pickVoices; }
+function speak(text, lang, rate = 0.95) {
+  return new Promise(res => {
+    if (!synth) return res();
+    const u = new SpeechSynthesisUtterance(text.replace(/…/g, ' '));
+    const v = lang === 'he' ? vHe : vFr;
+    u.lang = v ? v.lang : (lang === 'he' ? 'he-IL' : 'fr-FR'); if (v) u.voice = v;
+    u.rate = rate;
+    let done = false; const fin = () => { if (!done) { done = true; setTimeout(res, 250); } };
+    u.onend = fin; u.onerror = fin;
+    setTimeout(fin, 1500 + text.length * 180); // sécurité si onend ne vient pas
+    synth.speak(u);
+  });
+}
+/* petits sons */
+let actx = null;
+function beep(kind) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const notes = kind === 'ok' ? [660, 880] : kind === 'bad' ? [300, 220] : [520];
+    notes.forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = f; o.type = 'sine'; o.connect(g); g.connect(actx.destination);
+      const t = actx.currentTime + i * 0.14;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+      o.start(t); o.stop(t + 0.14);
+    });
+  } catch (e) {}
+  return new Promise(r => setTimeout(r, kind === 'listen' ? 150 : 320));
+}
+
+/* ---------- Écoute ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+function listen(lang, ms) {
+  return new Promise(res => {
+    if (!SR) return res({ error: 'unsupported' });
+    rec = new SR();
+    rec.lang = lang === 'he' ? 'he-IL' : 'fr-FR';
+    rec.interimResults = false; rec.maxAlternatives = 5; rec.continuous = false;
+    let out = null;
+    const timer = setTimeout(() => { try { rec.stop(); } catch (e) {} }, ms);
+    rec.onresult = e => { const r = e.results[0]; out = { alts: Array.from(r).map(a => a.transcript) }; };
+    rec.onerror = e => { if (!out) out = { error: e.error }; };
+    rec.onend = () => { clearTimeout(timer); rec = null; res(out || { error: 'no-speech' }); };
+    try { rec.start(); } catch (e) { clearTimeout(timer); res({ error: 'start' }); }
+  });
+}
+
+/* ---------- Interface ---------- */
+const $ = id => document.getElementById(id);
+function refreshHome() {
+  const known = CARDS.filter(c => box(c.id) >= 2).length;
+  const review = CARDS.filter(c => seen(c.id) && box(c.id) < 2).length;
+  $('stKnown').textContent = known; $('stReview').textContent = review; $('stNew').textContent = CARDS.length - known - review;
+  document.querySelectorAll('#dirs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === st.prefs.dir));
+  document.querySelectorAll('#lens button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === st.prefs.len)));
+  const w = [];
+  if (!SR) w.push("La reconnaissance vocale n'est pas disponible sur ce navigateur. Utilisez <b>Chrome sur Android</b>.");
+  if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
+  $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
+}
+document.querySelectorAll('#dirs button').forEach(b => b.onclick = () => { st.prefs.dir = b.dataset.v; save(); refreshHome(); });
+document.querySelectorAll('#lens button').forEach(b => b.onclick = () => { st.prefs.len = +b.dataset.v; save(); refreshHome(); });
+let resetArmed = false;
+$('reset').onclick = () => {
+  if (!resetArmed) { resetArmed = true; $('reset').textContent = 'Touchez encore pour tout effacer'; setTimeout(() => { resetArmed = false; $('reset').textContent = 'Remettre les progrès à zéro'; }, 4000); return; }
+  st.boxes = {}; save(); resetArmed = false; $('reset').textContent = 'Remettre les progrès à zéro'; refreshHome();
+};
+setTimeout(refreshHome, 600); refreshHome();
+
+/* ---------- Séance ---------- */
+let S = null, wake = null;
+function nextCard() {
+  // 1) une carte ratée qui doit revenir, 2) une carte à réviser dont c'est l'heure, 3) une nouvelle carte, dans l'ordre d'utilité
+  const now = S.count;
+  const back = S.retry.findIndex(r => r.at <= now);
+  if (back > -1) return S.retry.splice(back, 1)[0].c;
+  const dueC = CARDS.filter(c => seen(c.id) && due(c) && !S.done.has(c.id)).sort((a, b) => box(a.id) - box(b.id) || st.boxes[a.id].t - st.boxes[b.id].t)[0];
+  if (dueC && Math.random() < 0.6) return dueC;
+  const fresh = CARDS.find(c => !seen(c.id) && !S.done.has(c.id));
+  return fresh || dueC || CARDS.filter(c => !S.done.has(c.id))[Math.floor(Math.random() * CARDS.length)] || CARDS[0];
+}
+function show(state, cls) {
+  $('drive').className = 'drive ' + (cls || ''); $('dState').textContent = state;
+  $('dCount').textContent = S.len ? `${S.count} / ${S.len}` : `${S.count}`;
+  $('dScore').textContent = `✓ ${S.good} · ✗ ${S.bad}`;
+}
+async function run() {
+  const dir = st.prefs.dir, qLang = dir === 'fr-he' ? 'fr' : 'he', aLang = dir === 'fr-he' ? 'he' : 'fr';
+  await speak(dir === 'fr-he' ? "C'est parti. Je dis le mot en français, tu réponds en hébreu." : "C'est parti. Je dis le mot en hébreu, tu réponds en français.", 'fr');
+  while (S && S.on) {
+    if (S.paused) { await new Promise(r => (S.resume = r)); if (!S || !S.on) break; }
+    if (S.len && S.count >= S.len) break;
+    const c = S.cur || nextCard(); S.cur = c;
+    const q = dir === 'fr-he' ? c.fr : c.he;
+    $('dPrompt').textContent = q; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr';
+    $('dAnswer').textContent = ''; $('dTranslit').textContent = ''; $('dHeard').textContent = '';
+    show('Question');
+    await speak(q, qLang, qLang === 'he' ? 0.85 : 0.95);
+    if (!S || !S.on) break;
+    let res, tries = 0;
+    while (true) {
+      show('À vous…', 'listening'); await beep('listen');
+      res = await listen(aLang, 8000);
+      if (!S || !S.on) return;
+      if (res.error === 'not-allowed' || res.error === 'service-not-allowed') { await stopSession("Le micro est bloqué. Autorisez le micro pour ce site dans Chrome."); return; }
+      if (res.error === 'network') { await speak("Pas de connexion internet. Je fais une pause.", 'fr'); pause(); break; }
+      const said = res.alts ? res.alts.join(' / ') : '';
+      if (res.alts) $('dHeard').innerHTML = 'Entendu : <b>' + res.alts[0].replace(/[<&]/g, '') + '</b>';
+      // une bonne réponse passe avant les commandes (ex. « od pa'am » est aussi une carte)
+      if (res.alts && judge(res.alts, c, aLang)) { res.right = true; break; }
+      if (res.alts && res.alts.some(isStop)) { pause(); break; }
+      if (res.alts && res.alts.some(isRepeat) && tries < 3) { tries++; await speak(q, qLang, 0.8); continue; }
+      break;
+    }
+    if (!S || !S.on || S.paused) continue;
+    const ok = !!res.right;
+    S.count++; S.done.add(c.id); S.cur = null;
+    $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
+    $('dTranslit').textContent = c.tr;
+    if (ok) {
+      S.good++; record(c.id, true); show('Juste !', 'ok'); await beep('ok');
+      await speak(aLang === 'he' ? c.he : c.fr, aLang, 0.9);
+    } else {
+      S.bad++; record(c.id, false); show('À revoir', 'bad'); await beep('bad');
+      if (aLang === 'he') { await speak('La réponse est', 'fr'); await speak(c.he, 'he', 0.75); await speak(c.he, 'he', 0.6); }
+      else { await speak('Ça veut dire', 'fr'); await speak(c.fr, 'fr'); }
+      S.retry.push({ c, at: S.count + 4 });
+      // court instant pour dire « nakhon » (c'était juste) ou « od pa'am »
+      show(aLang === 'he' ? '« nakhon » si c\'était juste' : '« c\'était juste » si c\'était juste', 'bad');
+      const r2 = await listen(aLang, 3500);
+      if (!S || !S.on) return;
+      if (r2.alts && r2.alts.some(isRight)) {
+        st.boxes[c.id].ko--; st.boxes[c.id].b = 0; record(c.id, true); S.bad--; S.good++;
+        S.retry = S.retry.filter(r => r.c !== c); show('Validée', 'ok'); await beep('ok');
+      } else if (r2.alts && r2.alts.some(isRepeat)) {
+        await speak(c.he, 'he', 0.6);
+      } else if (r2.alts && r2.alts.some(isStop)) { pause(); }
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  if (S && S.on) {
+    await speak(`Séance terminée. ${S.good} bonnes réponses sur ${S.count}. Bravo !`, 'fr');
+    stopSession();
+  }
+}
+function pause() { if (!S) return; S.paused = true; show('En pause · touchez l\'écran pour reprendre'); }
+$('drive').addEventListener('click', e => {
+  if (e.target.id === 'dStop') return;
+  if (S && S.paused) { S.paused = false; const r = S.resume; S.resume = null; r && r(); }
+});
+async function stopSession(msg) {
+  if (!S) return;
+  S.on = false; const r = S.resume; S.resume = null; r && r();
+  try { rec && rec.abort(); } catch (e) {}
+  synth && synth.cancel();
+  try { wake && wake.release(); } catch (e) {} wake = null;
+  S = null; $('drive').hidden = true; $('home').hidden = false; refreshHome();
+  if (msg) { $('warn').innerHTML = msg; $('warn').hidden = false; }
+}
+$('dStop').onclick = () => stopSession();
+$('start').onclick = async () => {
+  pickVoices();
+  // demander le micro tout de suite (une seule fois)
+  try { if (navigator.mediaDevices) { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } } catch (e) {}
+  try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+  beep('listen');
+  S = { on: true, paused: false, count: 0, good: 0, bad: 0, len: st.prefs.len, retry: [], done: new Set(), cur: null };
+  $('home').hidden = true; $('drive').hidden = false;
+  run();
+};
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && S && !wake) { try { wake = await navigator.wakeLock.request('screen'); } catch (e) {} }
+});
+</script>
+</body>
+</html>
