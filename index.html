@@ -147,7 +147,7 @@ h1 span{color:var(--blue)}
     <span class="label">Pendant la séance, dites…</span>
     <ul class="cmds">
       <li><b>« lo yodéa »</b> (je ne sais pas) : l'appli donne la réponse.</li>
-      <li><b>« nakhon »</b> (compris) : après une erreur, la réponse reste affichée jusqu'à ce que vous disiez « nakhon ».</li>
+      <li><b>Après une erreur</b>, la réponse reste affichée : répétez-la correctement pour passer à la carte suivante.</li>
       <li><b>« od pa'am »</b> (encore une fois) : elle répète.</li>
       <li><b>« atsor »</b> (stop) : pause. Touchez l'écran pour reprendre.</li>
       <li>Si vous ne dites rien pendant 8 secondes, la réponse est donnée.</li>
@@ -284,7 +284,6 @@ function judge(alts, c, lang) {
 }
 const isDontKnow = s => /לא יוד|אין לי מושג|דלג|תדלג|ne sais pas|sais pas|passe/.test(s);
 const isRepeat = s => /עוד פעם|שוב|תחזור|encore|répète/.test(s);
-const isAck = s => /נכון|נחון|הבנתי|בסדר/.test(s); // « nakhon » : compris, on peut continuer
 const isStop = s => /^(עצור|תעצור|די|stop|pause|arrête)$/i.test(normHe(s)) || /(^| )עצור( |$)/.test(normHe(s));
 
 /* ---------- Voix ---------- */
@@ -509,13 +508,13 @@ async function run() {
       S.bad++; record(c.id, false); show('À revoir', 'bad'); beep('bad');
       const ans = aLang === 'he' ? c.he : c.fr, rate = aLang === 'he' ? 0.8 : 0.95;
       await speak(ans, aLang, rate);
-      // la carte réponse reste affichée jusqu'à « nakhon » (compris) ; la carte reste comptée comme ratée
+      // la carte réponse reste affichée jusqu'à ce que la bonne réponse soit répétée ; la carte reste comptée comme ratée
       while (S && S.on) {
-        show('Dites « nakhon » pour continuer', 'bad');
-        const r2 = await listen('he', 10000, a => a.some(isAck));
+        show('Répétez la réponse', 'bad'); await beep('listen');
+        const r2 = await listen(aLang, 10000, a => judge(a, c, aLang));
         if (!S || !S.on) return;
         if (r2.error === 'not-allowed' || r2.error === 'service-not-allowed') { await stopSession("Le micro est bloqué. Autorisez le micro pour ce site dans Chrome."); return; }
-        if (r2.right || (r2.alts && r2.alts.some(isAck))) { beep('listen'); break; }
+        if (r2.right || (r2.alts && judge(r2.alts, c, aLang))) { show('Bien répété', 'ok'); beep('ok'); break; }
         if (r2.alts && r2.alts.some(isStop)) { pause(); break; }
         await speak(ans, aLang, rate); // « od pa'am », autre chose ou silence : on redit la réponse
       }
