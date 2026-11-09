@@ -60,10 +60,28 @@ h1 span{color:var(--blue)}
 .ok .state,.ok .dot{color:var(--ok);background:none}.ok .dot{background:var(--ok)}
 .bad .state{color:var(--bad)}.bad .dot{background:var(--bad)}
 @keyframes pulse{50%{transform:scale(1.5);opacity:.6}}
-.prompt{font-family:var(--f-big);font-weight:800;font-size:clamp(2rem,9vw,3.4rem);line-height:1.15;text-wrap:balance;max-width:16ch;overflow-wrap:anywhere}
-.answer{font-family:var(--f-big);font-weight:700;font-size:clamp(2.2rem,11vw,4rem);direction:rtl;color:var(--ok);min-height:1.2em}
+/* La carte : une vraie carte qui pivote quand la réponse arrive */
+.stage{perspective:1200px;width:min(360px,88vw)}
+.card3d{position:relative;width:100%;aspect-ratio:5/3.4;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.3,1.35,.5,1)}
+.card3d.flipped{transform:rotateY(180deg)}
+.card3d.instant{transition:none}
+.card3d.deal{animation:deal .45s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes deal{from{transform:translateX(70vw) rotate(10deg);opacity:0}to{transform:none;opacity:1}}
+.cface{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:22px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:22px 18px;
+  background:linear-gradient(160deg,#1C2A47,#14203A);border:2px solid var(--line);
+  box-shadow:0 18px 40px -16px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden}
+.cface.back{transform:rotateY(180deg);background:linear-gradient(160deg,#1A2E2A,#13211F)}
+.ok .cface.back{border-color:var(--ok);background:linear-gradient(160deg,#173826,#0F2519)}
+.bad .cface.back{border-color:var(--bad);background:linear-gradient(160deg,#3A1A18,#261110)}
+.ctag{position:absolute;top:12px;left:16px;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--soft)}
+.cface::after{content:"א";position:absolute;right:14px;bottom:4px;font-family:var(--f-big);font-weight:800;font-size:2.4rem;color:rgba(111,163,255,.10)}
+.prompt{font-family:var(--f-big);font-weight:800;font-size:clamp(1.6rem,7.5vw,2.6rem);line-height:1.15;text-wrap:balance;max-width:14ch;overflow-wrap:anywhere}
+.answer{font-family:var(--f-big);font-weight:700;font-size:clamp(1.9rem,9.5vw,3.2rem);line-height:1.15;direction:rtl;color:var(--ok);overflow-wrap:anywhere}
+.bad .answer{color:#FFD9D4}
 .answer.fr{direction:ltr}
-.translit{font-style:italic;color:var(--soft);font-size:1.3rem;min-height:1.4em}
+.translit{font-style:italic;color:var(--soft);font-size:1.15rem}
+@media (prefers-reduced-motion:reduce){.card3d{transition:none}.card3d.deal{animation:none}}
 .meter{width:min(320px,80vw);height:64px;display:block}
 .heard{color:var(--soft);font-size:1rem;min-height:1.4em}
 .heard b{color:var(--ink)}
@@ -141,9 +159,12 @@ h1 span{color:var(--blue)}
 <section class="drive" id="drive" hidden aria-live="polite">
   <div class="bar"><span id="dCount">0 / 20</span><span id="dScore">✓ 0 · ✗ 0</span></div>
   <div class="state"><i class="dot"></i><span id="dState">Prêt</span></div>
-  <div class="prompt" id="dPrompt"></div>
-  <div class="answer" id="dAnswer"></div>
-  <div class="translit" id="dTranslit"></div>
+  <div class="stage">
+    <div class="card3d" id="card">
+      <div class="cface front"><span class="ctag" id="tagFront">En français</span><div class="prompt" id="dPrompt"></div></div>
+      <div class="cface back"><span class="ctag" id="tagBack">En hébreu</span><div class="answer" id="dAnswer"></div><div class="translit" id="dTranslit"></div></div>
+    </div>
+  </div>
   <canvas id="meter" class="meter" hidden aria-hidden="true"></canvas>
   <div class="heard" id="dHeard"></div>
   <button class="stop" id="dStop" type="button">Arrêter</button>
@@ -239,10 +260,16 @@ function pickVoices() {
   vFr = vs.filter(v => /^fr[-_]FR/i.test(v.lang)).sort((a, b) => pref(b) - pref(a))[0] || vs.find(v => /^fr/i.test(v.lang)) || null;
 }
 if (synth) { pickVoices(); synth.onvoiceschanged = pickVoices; }
+// Corrections de prononciation : sans voyelles, la voix se trompe parfois.
+// On lui donne alors le mot avec ses voyelles (nikoud). À compléter au fil des erreurs signalées.
+const SAY_HE = {
+  'בכיף': 'בְּכֵּיף',        // bekef (et pas « bekhef »)
+};
+function fixHe(t) { for (const [k, v] of Object.entries(SAY_HE)) t = t.split(k).join(v); return t; }
 function speak(text, lang, rate = 0.95) {
   return new Promise(res => {
     if (!synth) return res();
-    const u = new SpeechSynthesisUtterance(text.replace(/…/g, ' '));
+    const u = new SpeechSynthesisUtterance((lang === 'he' ? fixHe(text) : text).replace(/…/g, ' '));
     const v = lang === 'he' ? vHe : vFr;
     u.lang = v ? v.lang : (lang === 'he' ? 'he-IL' : 'fr-FR'); if (v) u.voice = v;
     u.rate = rate;
@@ -388,7 +415,10 @@ async function run() {
     const c = S.cur || nextCard(); S.cur = c;
     const q = dir === 'fr-he' ? c.fr : c.he;
     $('dPrompt').textContent = q; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr';
-    $('dAnswer').textContent = ''; $('dTranslit').textContent = ''; $('dHeard').textContent = '';
+    $('dHeard').textContent = '';
+    { const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
+      $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
+      setTimeout(() => { if (!$('card').classList.contains('flipped')) { $('dAnswer').textContent = ''; $('dTranslit').textContent = ''; } }, 50); }
     show('Question');
     await speak(q, qLang, qLang === 'he' ? 0.85 : 0.95);
     if (!S || !S.on) break;
@@ -413,6 +443,7 @@ async function run() {
     S.count++; S.done.add(c.id); S.cur = null;
     $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
     $('dTranslit').textContent = c.tr;
+    $('card').classList.remove('deal'); $('card').classList.add('flipped');
     if (ok) {
       S.good++; record(c.id, true); show('Juste !', 'ok'); await beep('ok');
     } else {
