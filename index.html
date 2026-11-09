@@ -43,6 +43,10 @@ h1 span{color:var(--blue)}
 .stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 4px}
 .stats b{display:block;font-family:var(--f-big);font-size:1.6rem;font-variant-numeric:tabular-nums}
 .stats span{font-size:.8rem;color:var(--soft)}
+.miss{border-top:1px solid var(--line);padding:8px 0;font-size:.92rem}
+.miss b{color:var(--ink)}
+.miss .he{direction:rtl;unicode-bidi:plaintext}
+.miss .h{color:var(--listen)}
 .cmds{margin:0;padding-left:18px;color:var(--soft)}
 .cmds b{color:var(--ink)}
 .warn{background:rgba(255,107,94,.12);border:1px solid var(--bad);border-radius:12px;padding:12px;color:var(--ink)}
@@ -161,6 +165,12 @@ h1 span{color:var(--blue)}
       <li>Si vous ne dites rien pendant 8 secondes, la réponse est donnée.</li>
     </ul>
   </section>
+  <section class="panel" id="missPanel" hidden>
+    <span class="label">Dernières réponses refusées</span>
+    <p class="lead" style="margin:0;font-size:.9rem">Ce que l'appli a entendu. Si c'était juste, faites une capture de cet écran et envoyez-la : j'ajusterai la comparaison.</p>
+    <div id="missList"></div>
+    <div class="seg"><button type="button" id="meterToggle"></button></div>
+  </section>
   <button class="link" id="reset" type="button">Remettre les progrès à zéro</button>
 </main>
 
@@ -229,10 +239,14 @@ function lev(a, b) {
   for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
   return prev[n];
 }
+// lettres qui se prononcent pareil en hébreu moderne : la transcription peut choisir l'une ou l'autre
+const SOUND = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ', 'ח': 'כ', 'ט': 'ת', 'ק': 'כ', 'ס': 'ש', 'ע': 'א', 'ו': '', 'י': '', 'ה': '' };
+const snd = w => /[א-ת]/.test(w) ? w.replace(/[א-ת]/g, ch => (ch in SOUND ? SOUND[ch] : ch)) : w;
+const ratio = (a, b) => 1 - lev(a, b) / Math.max(a.length, b.length, 1);
 function wordOk(w, e) {
-  if (w === e) return true;
-  if (e.length <= 3) return false;
-  return 1 - lev(w, e) / Math.max(w.length, e.length) >= 0.75;
+  if (w === e || snd(w) === snd(e)) return true;
+  if (e.length <= 2) return false;
+  return ratio(w, e) >= 0.67 || ratio(snd(w), snd(e)) >= 0.75;
 }
 function close(said, exp) {
   if (!said || !exp) return false;
@@ -244,10 +258,11 @@ function close(said, exp) {
     return ew.every(e => sw.some(w => wordOk(w, e)) || (e.length >= 4 && joined.includes(e)));
   }
   const a = said.replace(/ /g, ''), b = exp.replace(/ /g, '');
-  if (a === b) return true;
-  if (b.length >= 3 && a.includes(b)) return true;
-  if (b.length <= 3) return false;
-  return 1 - lev(a, b) / Math.max(a.length, b.length) >= 0.78;
+  if (a === b || snd(a) === snd(b)) return true;
+  if (b.length >= 3 && (a.includes(b) || snd(a).includes(snd(b)))) return true;
+  if (said.split(' ').some(w => wordOk(w, exp))) return true;
+  if (b.length <= 2) return false;
+  return ratio(a, b) >= 0.7 || ratio(snd(a), snd(b)) >= 0.75;
 }
 function expectedOptions(c, lang) {
   if (lang === 'he') return c.he.split('/').map(normHe).filter(Boolean);
@@ -342,7 +357,7 @@ function listen(lang, ms, check) {
     rec.onspeechstart = () => meter.speaking();
     rec.onerror = e => { if (!out) out = { error: e.error }; };
     rec.onend = () => { rec = null; finish(out || { error: 'no-speech' }); };
-    try { rec.start(); meter.start(); } catch (e) { finish({ error: 'start' }); }
+    try { rec.start(); if (!st.prefs.noMeter) meter.start(); } catch (e) { finish({ error: 'start' }); }
   });
 }
 
@@ -399,11 +414,17 @@ function refreshHome() {
   if (!SR) w.push("La reconnaissance vocale n'est pas disponible sur ce navigateur. Utilisez <b>Chrome sur Android</b>.");
   if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
   $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
+  const ms = st.misses || [];
+  $('missPanel').hidden = !ms.length && !st.prefs.noMeter;
+  const e = t => String(t).replace(/[<&]/g, '');
+  $('missList').innerHTML = ms.map(m => `<div class="miss">${e(m.q)} → attendu <b class="he">${e(m.exp)}</b><br>entendu : <span class="h he">${m.heard.map(e).join(' · ')}</span></div>`).join('');
+  $('meterToggle').textContent = st.prefs.noMeter ? 'Réactiver la barre de son' : 'Essayer sans la barre de son';
   $('voices').innerHTML = 'Hébreu : <b>' + (vHe ? vHe.name + ' (' + vHe.lang + ')' : 'aucune voix trouvée') + '</b><br>Français : <b>' + (vFr ? vFr.name + ' (' + vFr.lang + ')' : 'aucune voix trouvée') + '</b>';
 }
 document.querySelectorAll('#dirs button').forEach(b => b.onclick = () => { st.prefs.dir = b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#lens button').forEach(b => b.onclick = () => { st.prefs.len = +b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#sexes button, #welcomeSex button').forEach(b => b.onclick = () => { st.prefs.sex = b.dataset.v; save(); buildCards(); refreshHome(); window.scrollTo(0, 0); });
+$('meterToggle').onclick = () => { st.prefs.noMeter = !st.prefs.noMeter; save(); refreshHome(); };
 let resetArmed = false;
 $('reset').onclick = () => {
   if (!resetArmed) { resetArmed = true; $('reset').textContent = 'Touchez encore pour tout effacer'; setTimeout(() => { resetArmed = false; $('reset').textContent = 'Remettre les progrès à zéro'; }, 4000); return; }
@@ -476,6 +497,7 @@ async function run() {
     } else {
       // fausse : la réponse s'affiche tout de suite (carte retournée) et la voix la dit une fois
       S.bad++; record(c.id, false); show('À revoir', 'bad'); beep('bad');
+      st.misses = [{ q: dir === 'fr-he' ? c.fr : c.he, exp: aLang === 'he' ? c.he : c.fr, heard: res.alts ? res.alts.slice(0, 3) : [res.error === 'no-speech' ? '(rien entendu)' : '(' + (res.error || 'rien') + ')'] }, ...(st.misses || [])].slice(0, 15); save();
       await speak(aLang === 'he' ? c.he : c.fr, aLang, aLang === 'he' ? 0.8 : 0.95);
     }
     if (!S || !S.on) return;
