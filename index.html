@@ -116,8 +116,8 @@ h1 span{color:var(--blue)}
   <section class="panel">
     <span class="label">Vos progrès</span>
     <div class="stats">
-      <div><b id="stKnown">0</b><span>cartes sues</span></div>
-      <div><b id="stReview">0</b><span>à revoir</span></div>
+      <div><b id="stKnown">0</b><span>apprises (7 sur 7)</span></div>
+      <div><b id="stReview">0</b><span>en cours</span></div>
       <div><b id="stNew">0</b><span>pas encore vues</span></div>
     </div>
   </section>
@@ -197,16 +197,27 @@ function buildCards() {
 }
 buildCards();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
-const box = id => (st.boxes[id] && st.boxes[id].b) || 0;
+/* ---------- Répétition espacée, comptée en nombre de cartes ----------
+   st.n = nombre total de cartes passées depuis le début.
+   Erreur : la carte revient 5 à 10 cartes plus tard, et son compteur repart à zéro.
+   Bonne réponse : elle revient de plus en plus tard (GAPS). Au bout de 7 bonnes
+   réponses de suite, elle est apprise et ne revient plus. */
+const GAPS = [10, 25, 60, 150, 400, 1000]; // délai après la 1re, 2e, … 6e bonne réponse
+const MASTER = 7;
+st.n = st.n || 0;
 const seen = id => !!st.boxes[id];
-function record(id, ok) {
-  const b = st.boxes[id] || { b: 0, ok: 0, ko: 0 };
-  if (ok) { b.b = Math.min(5, b.b + 1); b.ok++; } else { b.b = 0; b.ko++; }
-  b.t = Date.now(); st.boxes[id] = b; save();
+const streak = id => (st.boxes[id] && st.boxes[id].s) || 0;
+const mastered = id => streak(id) >= MASTER;
+// anciennes données (boîtes par durée) -> nouveau système
+for (const [id, b] of Object.entries(st.boxes)) if (b && b.s === undefined) {
+  b.s = Math.min(b.b || 0, MASTER - 1); b.due = b.s ? st.n + GAPS[b.s - 1] : st.n + 5; delete b.b; delete b.t;
 }
-// intervalles de révision par boîte (en heures)
-const WAIT = [0, 4, 24, 72, 168, 480];
-const due = c => { const b = st.boxes[c.id]; return b && Date.now() - b.t >= WAIT[b.b] * 3600e3; };
+function record(id, ok) {
+  const b = st.boxes[id] || { s: 0, ok: 0, ko: 0 };
+  if (ok) { b.s = b.s + 1; b.ok++; b.due = b.s >= MASTER ? -1 : st.n + GAPS[b.s - 1]; }
+  else { b.s = 0; b.ko++; b.due = st.n + 5 + Math.floor(Math.random() * 6); }
+  st.boxes[id] = b; save();
+}
 
 /* ---------- Comparaison des réponses ---------- */
 const NUM = { 'אפס': '0', 'אחת': '1', 'אחד': '1', 'שתיים': '2', 'שניים': '2', 'שלוש': '3', 'ארבע': '4', 'חמש': '5', 'שש': '6', 'שבע': '7', 'שמונה': '8', 'תשע': '9', 'עשר': '10', 'עשרים': '20', 'שלושים': '30', 'ארבעים': '40', 'חמישים': '50', 'שישים': '60', 'שבעים': '70', 'שמונים': '80', 'תשעים': '90', 'מאה': '100', 'אלף': '1000' };
@@ -376,8 +387,8 @@ const meter = (() => {
 /* ---------- Interface ---------- */
 const $ = id => document.getElementById(id);
 function refreshHome() {
-  const known = CARDS.filter(c => box(c.id) >= 2).length;
-  const review = CARDS.filter(c => seen(c.id) && box(c.id) < 2).length;
+  const known = CARDS.filter(c => mastered(c.id)).length;
+  const review = CARDS.filter(c => seen(c.id) && !mastered(c.id)).length;
   $('stKnown').textContent = known; $('stReview').textContent = review; $('stNew').textContent = CARDS.length - known - review;
   document.querySelectorAll('#dirs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === st.prefs.dir));
   document.querySelectorAll('#lens button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === st.prefs.len)));
@@ -404,15 +415,16 @@ setTimeout(refreshHome, 600); refreshHome();
 
 /* ---------- Séance ---------- */
 let S = null, wake = null;
-function nextCard() {
-  // 1) une carte ratée qui doit revenir, 2) une carte à réviser dont c'est l'heure, 3) une nouvelle carte, dans l'ordre d'utilité
-  const now = S.count;
-  const back = S.retry.findIndex(r => r.at <= now);
-  if (back > -1) return S.retry.splice(back, 1)[0].c;
-  const dueC = CARDS.filter(c => seen(c.id) && due(c) && !S.done.has(c.id)).sort((a, b) => box(a.id) - box(b.id) || st.boxes[a.id].t - st.boxes[b.id].t)[0];
-  if (dueC && Math.random() < 0.6) return dueC;
-  const fresh = CARDS.find(c => !seen(c.id) && !S.done.has(c.id));
-  return fresh || dueC || CARDS.filter(c => !S.done.has(c.id))[Math.floor(Math.random() * CARDS.length)] || CARDS[0];
+function nextCard(lastId) {
+  const pool = CARDS.filter(c => c.id !== lastId);
+  const active = pool.filter(c => seen(c.id) && !mastered(c.id)).sort((a, b) => st.boxes[a.id].due - st.boxes[b.id].due);
+  // 1) une carte dont le tour est revenu (la plus en retard d'abord)
+  if (active.length && st.boxes[active[0].id].due <= st.n) return active[0];
+  // 2) sinon une nouvelle carte, dans l'ordre d'utilité
+  const fresh = pool.find(c => !seen(c.id));
+  if (fresh) return fresh;
+  // 3) plus de nouvelles cartes : la prochaine qui doit revenir
+  return active[0] || null;
 }
 function show(state, cls) {
   $('drive').className = 'drive ' + (cls || ''); $('dState').textContent = state;
@@ -425,7 +437,8 @@ async function run() {
   while (S && S.on) {
     if (S.paused) { await new Promise(r => (S.resume = r)); if (!S || !S.on) break; }
     if (S.len && S.count >= S.len) break;
-    const c = S.cur || nextCard(); S.cur = c;
+    const c = S.cur || nextCard(S.lastId); S.cur = c;
+    if (!c) { await speak('Bravo ! Toutes les cartes sont apprises.', 'fr'); break; }
     const q = dir === 'fr-he' ? c.fr : c.he;
     $('dPrompt').textContent = q; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr';
     $('dHeard').textContent = '';
@@ -453,7 +466,8 @@ async function run() {
     }
     if (!S || !S.on || S.paused) continue;
     const ok = !!res.right;
-    S.count++; S.done.add(c.id); S.cur = null;
+    S.count++; st.n++; S.lastId = c.id; S.cur = null;
+    const before = st.boxes[c.id] ? { ...st.boxes[c.id] } : null;
     $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
     $('dTranslit').textContent = c.tr;
     $('card').classList.remove('deal'); $('card').classList.add('flipped');
@@ -463,14 +477,13 @@ async function run() {
       S.bad++; record(c.id, false); show('À revoir', 'bad'); await beep('bad');
       if (aLang === 'he') { await speak('La réponse est', 'fr'); await speak(c.he, 'he', 0.75); await speak(c.he, 'he', 0.6); }
       else { await speak('Ça veut dire', 'fr'); await speak(c.fr, 'fr'); }
-      S.retry.push({ c, at: S.count + 4 });
       // court instant pour dire « nakhon » (c'était juste) ou « od pa'am »
       show(aLang === 'he' ? '« nakhon » si c\'était juste' : '« c\'était juste » si c\'était juste', 'bad');
       const r2 = await listen(aLang, 3500);
       if (!S || !S.on) return;
       if (r2.alts && r2.alts.some(isRight)) {
-        st.boxes[c.id].ko--; st.boxes[c.id].b = 0; record(c.id, true); S.bad--; S.good++;
-        S.retry = S.retry.filter(r => r.c !== c); show('Validée', 'ok'); await beep('ok');
+        if (before) st.boxes[c.id] = before; else delete st.boxes[c.id];
+        record(c.id, true); S.bad--; S.good++; show('Validée', 'ok'); await beep('ok');
       } else if (r2.alts && r2.alts.some(isRepeat)) {
         await speak(c.he, 'he', 0.6);
       } else if (r2.alts && r2.alts.some(isStop)) { pause(); }
@@ -503,7 +516,7 @@ $('start').onclick = async () => {
   try { if (navigator.mediaDevices) { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } } catch (e) {}
   try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
   beep('listen');
-  S = { on: true, paused: false, count: 0, good: 0, bad: 0, len: st.prefs.len, retry: [], done: new Set(), cur: null };
+  S = { on: true, paused: false, count: 0, good: 0, bad: 0, len: st.prefs.len, cur: null, lastId: null };
   $('home').hidden = true; $('drive').hidden = false;
   run();
 };
