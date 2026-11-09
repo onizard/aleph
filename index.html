@@ -338,9 +338,10 @@ function listen(lang, ms, check) {
     if (!SR) return res({ error: 'unsupported' });
     rec = new SR();
     rec.lang = lang === 'he' ? 'he-IL' : 'fr-FR';
-    rec.interimResults = true; rec.maxAlternatives = 5; rec.continuous = false;
-    let out = null, finished = false;
-    const finish = o => { if (finished) return; finished = true; clearTimeout(timer); meter.stop(); res(o); };
+    // écoute continue : on garde tout ce qui est dit (même avec des pauses ou des mots autour)
+    rec.interimResults = true; rec.maxAlternatives = 5; rec.continuous = true;
+    let out = null, finished = false, quiet = 0;
+    const finish = o => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(quiet); try { rec && rec.abort(); } catch (x) {} meter.stop(); res(o); };
     const timer = setTimeout(() => { try { rec && rec.stop(); } catch (e) {} }, ms);
     rec.onresult = e => {
       const alts = [];
@@ -351,8 +352,9 @@ function listen(lang, ms, check) {
       if (alts[0]) $('dHeard').innerHTML = 'Entendu : <b>' + alts[0].replace(/[<&]/g, '') + '</b>';
       // bonne réponse entendue : on valide tout de suite, sans attendre la fin de la phrase
       if (check && check(alts)) { out.right = true; try { rec.abort(); } catch (x) {} finish(out); return; }
-      // phrase terminée et pas la bonne réponse : on tranche tout de suite
-      if (e.results[e.results.length - 1].isFinal) { try { rec.abort(); } catch (x) {} finish(out); }
+      // pas (encore) la bonne réponse : si plus rien n'est dit pendant 1,3 s, on tranche
+      clearTimeout(quiet);
+      if (e.results[e.results.length - 1].isFinal) quiet = setTimeout(() => finish(out), 1300);
     };
     rec.onspeechstart = () => meter.speaking();
     rec.onerror = e => { if (!out) out = { error: e.error }; };
