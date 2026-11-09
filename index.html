@@ -26,22 +26,22 @@ html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.45;
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 [hidden]{display:none!important}
-.wrap{max-width:620px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:18px;
+.wrap{max-width:620px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:14px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 28px}
 h1{font-family:var(--f-big);font-weight:800;font-size:1.7rem;margin:0;letter-spacing:-.01em}
 h1 span{color:var(--blue)}
 .lead{color:var(--soft);margin:4px 0 0}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .label{font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
 .seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
 #lens{grid-template-columns:repeat(3,1fr)}
-.seg button{font:inherit;color:var(--ink);background:transparent;border:2px solid var(--line);border-radius:12px;padding:12px 8px;font-weight:700;cursor:pointer}
+.seg button{font:inherit;color:var(--ink);background:transparent;border:2px solid var(--line);border-radius:12px;padding:10px 6px;font-weight:700;cursor:pointer;line-height:1.25}
 .seg button[aria-pressed="true"]{border-color:var(--blue);background:rgba(111,163,255,.14)}
-.go{font-family:var(--f-big);font-weight:800;font-size:1.5rem;border:0;border-radius:20px;padding:26px 20px;background:var(--blue);color:#0B1220;cursor:pointer;box-shadow:0 4px 0 #3D6FCC}
+.go{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:2;font-family:var(--f-big);font-weight:800;font-size:1.5rem;border:0;border-radius:20px;padding:20px;background:var(--blue);color:#0B1220;cursor:pointer;box-shadow:0 4px 0 #3D6FCC}
 .go:active{transform:translateY(2px);box-shadow:0 2px 0 #3D6FCC}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
-.stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 4px}
-.stats b{display:block;font-family:var(--f-big);font-size:1.6rem;font-variant-numeric:tabular-nums}
+.stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 4px}
+.stats b{display:block;font-family:var(--f-big);font-size:1.5rem;line-height:1.2;font-variant-numeric:tabular-nums}
 .stats span{font-size:.8rem;color:var(--soft)}
 .cmds{margin:0;padding-left:18px;color:var(--soft)}
 .cmds b{color:var(--ink)}
@@ -108,7 +108,6 @@ h1 span{color:var(--blue)}
 <main class="wrap" id="home">
   <header>
     <h1><span lang="he">א</span> Aleph</h1>
-    <p class="lead">L'hébreu au volant : l'appli parle, vous répondez, sans toucher l'écran.</p>
   </header>
 
   <div class="warn" id="warn" hidden></div>
@@ -116,9 +115,9 @@ h1 span{color:var(--blue)}
   <section class="panel">
     <span class="label">Vos progrès</span>
     <div class="stats">
-      <div><b id="stKnown">0</b><span>apprises (7 sur 7)</span></div>
+      <div><b id="stKnown">0</b><span>apprises</span></div>
       <div><b id="stReview">0</b><span>en cours</span></div>
-      <div><b id="stNew">0</b><span>pas encore vues</span></div>
+      <div><b id="stNew">0</b><span>nouvelles</span></div>
     </div>
   </section>
 
@@ -133,10 +132,10 @@ h1 span{color:var(--blue)}
       <button type="button" data-v="fr-he" id="dir-fr-he">Français → hébreu</button>
       <button type="button" data-v="he-fr" id="dir-he-fr">Hébreu → français</button>
     </div>
-    <span class="label">Durée de la séance</span>
+    <span class="label">Cartes par séance</span>
     <div class="seg" id="lens">
-      <button type="button" data-v="20" id="len-20">20 cartes</button>
-      <button type="button" data-v="40" id="len-40">40 cartes</button>
+      <button type="button" data-v="20" id="len-20">20</button>
+      <button type="button" data-v="40" id="len-40">40</button>
       <button type="button" data-v="0" id="len-0">Sans fin</button>
     </div>
   </section>
