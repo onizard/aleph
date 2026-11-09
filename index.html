@@ -157,7 +157,6 @@ h1 span{color:var(--blue)}
     <ul class="cmds">
       <li><b>« lo yodéa »</b> (je ne sais pas) : l'appli donne la réponse.</li>
       <li><b>« od pa'am »</b> (encore une fois) : elle répète.</li>
-      <li><b>« nakhon »</b> (c'est juste), juste après une correction : la carte est validée quand même.</li>
       <li><b>« atsor »</b> (stop) : pause. Touchez l'écran pour reprendre.</li>
       <li>Si vous ne dites rien pendant 8 secondes, la réponse est donnée.</li>
     </ul>
@@ -293,7 +292,7 @@ function speak(text, lang, rate = 0.95) {
     const v = lang === 'he' ? vHe : vFr;
     u.lang = v ? v.lang : (lang === 'he' ? 'he-IL' : 'fr-FR'); if (v) u.voice = v;
     u.rate = rate;
-    let done = false; const fin = () => { if (!done) { done = true; setTimeout(res, 250); } };
+    let done = false; const fin = () => { if (!done) { done = true; setTimeout(res, 60); } };
     u.onend = fin; u.onerror = fin;
     setTimeout(fin, 1500 + text.length * 180); // sécurité si onend ne vient pas
     synth.speak(u);
@@ -313,7 +312,7 @@ function beep(kind) {
       o.start(t); o.stop(t + 0.14);
     });
   } catch (e) {}
-  return new Promise(r => setTimeout(r, kind === 'listen' ? 150 : 320));
+  return new Promise(r => setTimeout(r, kind === 'listen' ? 90 : 0));
 }
 
 /* ---------- Écoute ---------- */
@@ -336,7 +335,9 @@ function listen(lang, ms, check) {
       out = { alts };
       if (alts[0]) $('dHeard').innerHTML = 'Entendu : <b>' + alts[0].replace(/[<&]/g, '') + '</b>';
       // bonne réponse entendue : on valide tout de suite, sans attendre la fin de la phrase
-      if (check && check(alts)) { out.right = true; try { rec.abort(); } catch (x) {} finish(out); }
+      if (check && check(alts)) { out.right = true; try { rec.abort(); } catch (x) {} finish(out); return; }
+      // phrase terminée et pas la bonne réponse : on tranche tout de suite
+      if (e.results[e.results.length - 1].isFinal) { try { rec.abort(); } catch (x) {} finish(out); }
     };
     rec.onspeechstart = () => meter.speaking();
     rec.onerror = e => { if (!out) out = { error: e.error }; };
@@ -467,28 +468,17 @@ async function run() {
     if (!S || !S.on || S.paused) continue;
     const ok = !!res.right;
     S.count++; st.n++; S.lastId = c.id; S.cur = null;
-    const before = st.boxes[c.id] ? { ...st.boxes[c.id] } : null;
     $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
     $('dTranslit').textContent = c.tr;
     $('card').classList.remove('deal'); $('card').classList.add('flipped');
     if (ok) {
-      S.good++; record(c.id, true); show('Juste !', 'ok'); await beep('ok');
+      S.good++; record(c.id, true); show('Juste !', 'ok'); beep('ok');
     } else {
-      S.bad++; record(c.id, false); show('À revoir', 'bad'); await beep('bad');
-      if (aLang === 'he') { await speak('La réponse est', 'fr'); await speak(c.he, 'he', 0.75); await speak(c.he, 'he', 0.6); }
-      else { await speak('Ça veut dire', 'fr'); await speak(c.fr, 'fr'); }
-      // court instant pour dire « nakhon » (c'était juste) ou « od pa'am »
-      show(aLang === 'he' ? '« nakhon » si c\'était juste' : '« c\'était juste » si c\'était juste', 'bad');
-      const r2 = await listen(aLang, 3500);
-      if (!S || !S.on) return;
-      if (r2.alts && r2.alts.some(isRight)) {
-        if (before) st.boxes[c.id] = before; else delete st.boxes[c.id];
-        record(c.id, true); S.bad--; S.good++; show('Validée', 'ok'); await beep('ok');
-      } else if (r2.alts && r2.alts.some(isRepeat)) {
-        await speak(c.he, 'he', 0.6);
-      } else if (r2.alts && r2.alts.some(isStop)) { pause(); }
+      // fausse : la réponse s'affiche tout de suite (carte retournée) et la voix la dit une fois
+      S.bad++; record(c.id, false); show('À revoir', 'bad'); beep('bad');
+      await speak(aLang === 'he' ? c.he : c.fr, aLang, aLang === 'he' ? 0.8 : 0.95);
     }
-    await new Promise(r => setTimeout(r, ok ? 250 : 500));
+    if (!S || !S.on) return;
   }
   if (S && S.on) {
     await speak(`Séance terminée. ${S.good} bonnes réponses sur ${S.count}. Bravo !`, 'fr');
