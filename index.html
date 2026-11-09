@@ -144,6 +144,15 @@ h1 span{color:var(--blue)}
   <button class="go" id="start" type="button">Démarrer</button>
 
   <section class="panel">
+    <span class="label">Voix utilisées</span>
+    <p class="lead" id="voices" style="margin:0">…</p>
+    <div class="seg">
+      <button type="button" id="testHe">Écouter l'hébreu</button>
+      <button type="button" id="testFr">Écouter le français</button>
+    </div>
+  </section>
+
+  <section class="panel">
     <span class="label">Pendant la séance, dites…</span>
     <ul class="cmds">
       <li><b>« lo yodéa »</b> (je ne sais pas) : l'appli donne la réponse.</li>
@@ -378,6 +387,7 @@ function refreshHome() {
   if (!SR) w.push("La reconnaissance vocale n'est pas disponible sur ce navigateur. Utilisez <b>Chrome sur Android</b>.");
   if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
   $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
+  $('voices').innerHTML = 'Hébreu : <b>' + (vHe ? vHe.name + ' (' + vHe.lang + ')' : 'aucune voix trouvée') + '</b><br>Français : <b>' + (vFr ? vFr.name + ' (' + vFr.lang + ')' : 'aucune voix trouvée') + '</b>';
 }
 document.querySelectorAll('#dirs button').forEach(b => b.onclick = () => { st.prefs.dir = b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#lens button').forEach(b => b.onclick = () => { st.prefs.len = +b.dataset.v; save(); refreshHome(); });
@@ -387,6 +397,9 @@ $('reset').onclick = () => {
   if (!resetArmed) { resetArmed = true; $('reset').textContent = 'Touchez encore pour tout effacer'; setTimeout(() => { resetArmed = false; $('reset').textContent = 'Remettre les progrès à zéro'; }, 4000); return; }
   st.boxes = {}; save(); resetArmed = false; $('reset').textContent = 'Remettre les progrès à zéro'; refreshHome();
 };
+$('testHe').onclick = () => { pickVoices(); refreshHome(); speak('בוקר טוב, מה שלומך? בכיף.', 'he', 0.9); };
+$('testFr').onclick = () => { pickVoices(); refreshHome(); speak("Bonjour, je suis la voix française d'Aleph.", 'fr'); };
+if (synth) synth.addEventListener && synth.addEventListener('voiceschanged', () => setTimeout(refreshHome, 50));
 setTimeout(refreshHome, 600); refreshHome();
 
 /* ---------- Séance ---------- */
