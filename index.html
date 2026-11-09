@@ -39,10 +39,10 @@ h1 span{color:var(--blue)}
 .seg button[aria-pressed="true"]{border-color:var(--blue);background:rgba(111,163,255,.14)}
 .go{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:2;font-family:var(--f-big);font-weight:800;font-size:1.5rem;border:0;border-radius:20px;padding:20px;background:var(--blue);color:#0B1220;cursor:pointer;box-shadow:0 4px 0 #3D6FCC}
 .go:active{transform:translateY(2px);box-shadow:0 2px 0 #3D6FCC}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
 .stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 4px}
-.stats b{display:block;font-family:var(--f-big);font-size:1.5rem;line-height:1.2;font-variant-numeric:tabular-nums}
-.stats span{font-size:.8rem;color:var(--soft)}
+.stats b{display:block;font-family:var(--f-big);font-size:1.35rem;line-height:1.2;font-variant-numeric:tabular-nums}
+.stats span{font-size:.74rem;color:var(--soft)}
 .cmds{margin:0;padding-left:18px;color:var(--soft)}
 .cmds b{color:var(--ink)}
 .warn{background:rgba(255,107,94,.12);border:1px solid var(--bad);border-radius:12px;padding:12px;color:var(--ink)}
@@ -115,6 +115,7 @@ h1 span{color:var(--blue)}
   <section class="panel">
     <span class="label">Vos progrès</span>
     <div class="stats">
+      <div><b id="stMaster">0</b><span>maîtrisées</span></div>
       <div><b id="stKnown">0</b><span>apprises</span></div>
       <div><b id="stReview">0</b><span>en cours</span></div>
       <div><b id="stNew">0</b><span>nouvelles</span></div>
@@ -186,27 +187,47 @@ function buildCards() {
 delete st.prefs.noMeter; delete st.prefs.realMeter; delete st.misses;
 buildCards();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
-/* ---------- Répétition espacée, comptée en nombre de cartes ----------
-   st.n = nombre total de cartes passées depuis le début.
-   Erreur : la carte revient 5 à 10 cartes plus tard, et son compteur repart à zéro.
-   Bonne réponse : elle revient de plus en plus tard (GAPS). Au bout de 7 bonnes
-   réponses de suite, elle est apprise et ne revient plus. */
-const GAPS = [100, 200, 400, 800, 1600, 3200]; // délai (en cartes) après la 1re, 2e, … 6e bonne réponse
-const MASTER = 7;
+/* ---------- Répétition espacée façon Anki (algorithme SM-2) ----------
+   Chaque carte a un intervalle en JOURS et un « facteur de facilité » (ease, 250 % au départ).
+   - Nouvelle carte juste du premier coup : elle revient demain.
+   - Erreur : la carte repasse en apprentissage et revient 5 à 10 cartes plus loin dans la séance ;
+     une fois retrouvée, elle revient le lendemain. Si c'était une carte déjà connue, son facteur baisse de 20 points.
+   - Bonne réponse en révision : intervalle × facteur (1 j → 2,5 j → 6 j → 16 j…), +15 points de facilité.
+   - Au bout de 7 bonnes réponses de suite, la carte est apprise et sort de la liste. */
+const DAY = 86400e3, MASTER = 7, NEW_PER_DAY = 20; // comme Anki : 20 nouvelles cartes par jour, mélangées aux révisions
+const today = () => new Date(Date.now()).toDateString();
+const newToday = () => (st.newDay === today() ? st.newCount || 0 : 0);
 st.n = st.n || 0;
 const seen = id => !!st.boxes[id];
 const streak = id => (st.boxes[id] && st.boxes[id].s) || 0;
 const mastered = id => streak(id) >= MASTER;
-// anciennes données (boîtes par durée) -> nouveau système
-for (const [id, b] of Object.entries(st.boxes)) if (b && b.s === undefined) {
-  b.s = Math.min(b.b || 0, MASTER - 1); b.due = b.s ? st.n + GAPS[b.s - 1] : st.n + 5; delete b.b; delete b.t;
+const isLearning = b => b && b.learn;
+// reprise des anciennes données (délais comptés en cartes) -> intervalles en jours
+if (st.v !== 3) {
+  const now = Date.now(), START = [1, 1, 3, 7, 16, 35, 80];
+  for (const b of Object.values(st.boxes)) {
+    if (!b || b.s >= MASTER) continue;
+    b.ease = b.ease || 2.5;
+    if (b.s >= 1) { b.ivl = START[b.s]; b.due = now + b.ivl * DAY; b.learn = false; }
+    else { b.learn = true; b.ldue = st.n + 5; b.ivl = 0; }
+  }
+  st.v = 3; save();
 }
-// passage aux nouveaux délais : on replanifie les cartes déjà réussies
-if (st.v !== 2) { for (const b of Object.values(st.boxes)) if (b && b.s >= 1 && b.s < MASTER) b.due = st.n + GAPS[b.s - 1]; st.v = 2; save(); }
 function record(id, ok) {
-  const b = st.boxes[id] || { s: 0, ok: 0, ko: 0 };
-  if (ok) { b.s = b.s + 1; b.ok++; b.due = b.s >= MASTER ? -1 : st.n + GAPS[b.s - 1]; }
-  else { b.s = 0; b.ko++; b.due = st.n + 5 + Math.floor(Math.random() * 6); }
+  const now = Date.now();
+  const b = st.boxes[id] || { s: 0, ok: 0, ko: 0, ease: 2.5, ivl: 0, learn: false, lapses: 0 };
+  const isNew = !st.boxes[id];
+  if (isNew) { if (st.newDay !== today()) { st.newDay = today(); st.newCount = 0; } st.newCount++; }
+  if (ok) {
+    b.ok++; b.s++;
+    if (b.s >= MASTER) { b.learn = false; b.due = -1; }
+    else if (isNew || b.learn || !b.ivl) { b.learn = false; b.ivl = b.ivl && b.lapses ? Math.max(1, b.ivl) : 1; b.due = now + b.ivl * DAY; }
+    else { b.ivl = Math.max(b.ivl + 1, Math.round(b.ivl * b.ease)); b.ease = Math.min(3.5, b.ease + 0.15); b.due = now + b.ivl * DAY; }
+  } else {
+    b.ko++; b.s = 0;
+    if (!isNew && !b.learn && b.ivl) { b.lapses = (b.lapses || 0) + 1; b.ease = Math.max(1.3, b.ease - 0.2); b.ivl = 1; }
+    b.learn = true; b.ldue = st.n + 5 + Math.floor(Math.random() * 6);
+  }
   st.boxes[id] = b; save();
 }
 
@@ -394,9 +415,12 @@ const meter = (() => {
 /* ---------- Interface ---------- */
 const $ = id => document.getElementById(id);
 function refreshHome() {
-  const known = CARDS.filter(c => mastered(c.id)).length;
-  const review = CARDS.filter(c => seen(c.id) && !mastered(c.id)).length;
-  $('stKnown').textContent = known; $('stReview').textContent = review; $('stNew').textContent = CARDS.length - known - review;
+  // maîtrisées : 7 bonnes réponses de suite · apprises : au moins une bonne réponse · en cours : ratée, à retrouver
+  const master = CARDS.filter(c => mastered(c.id)).length;
+  const known = CARDS.filter(c => streak(c.id) >= 1 && !mastered(c.id)).length;
+  const review = CARDS.filter(c => seen(c.id) && streak(c.id) === 0).length;
+  $('stMaster').textContent = master; $('stKnown').textContent = known; $('stReview').textContent = review;
+  $('stNew').textContent = CARDS.length - master - known - review;
   document.querySelectorAll('#dirs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === st.prefs.dir));
   document.querySelectorAll('#lens button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === st.prefs.len)));
   document.querySelectorAll('#sexes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.prefs.sex)));
@@ -415,15 +439,23 @@ setTimeout(refreshHome, 600); refreshHome();
 /* ---------- Séance ---------- */
 let S = null, wake = null;
 function nextCard(lastId) {
-  const pool = CARDS.filter(c => c.id !== lastId);
-  const active = pool.filter(c => seen(c.id) && !mastered(c.id)).sort((a, b) => st.boxes[a.id].due - st.boxes[b.id].due);
-  // 1) une carte dont le tour est revenu (la plus en retard d'abord)
-  if (active.length && st.boxes[active[0].id].due <= st.n) return active[0];
-  // 2) sinon une nouvelle carte, dans l'ordre d'utilité
+  const now = Date.now();
+  const pool = CARDS.filter(c => c.id !== lastId && !mastered(c.id));
+  const box = c => st.boxes[c.id];
+  // 1) une carte ratée dont le tour est revenu dans la séance (5 à 10 cartes plus tard)
+  const learn = pool.filter(c => isLearning(box(c))).sort((x, y) => box(x).ldue - box(y).ldue);
+  if (learn.length && box(learn[0]).ldue <= st.n) return learn[0];
+  // 2) les révisions du jour, mélangées aux nouvelles cartes (une sur deux) tant que le quota du jour n'est pas atteint
+  const due = pool.filter(c => seen(c.id) && !isLearning(box(c)) && box(c).due <= now).sort((x, y) => box(x).due - box(y).due);
   const fresh = pool.find(c => !seen(c.id));
+  const canNew = fresh && newToday() < NEW_PER_DAY;
+  if (due.length && canNew) return st.n % 2 ? fresh : due[0];
+  if (due.length) return due[0];
+  // 3) une nouvelle carte, dans l'ordre d'utilité (au-delà du quota si la séance continue)
   if (fresh) return fresh;
-  // 3) plus de nouvelles cartes : la prochaine qui doit revenir
-  return active[0] || null;
+  // 4) plus rien de nouveau : on reprend les cartes ratées, puis les prochaines révisions
+  if (learn.length) return learn[0];
+  return pool.filter(c => seen(c.id)).sort((x, y) => box(x).due - box(y).due)[0] || null;
 }
 function show(state, cls) {
   $('drive').className = 'drive ' + (cls || ''); $('dState').textContent = state;
