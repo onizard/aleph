@@ -470,10 +470,10 @@ const meter = (() => {
 /* ---------- Interface ---------- */
 const $ = id => document.getElementById(id);
 function refreshHome() {
-  // maîtrisées : boîte 7 · apprises : boîtes 2 à 6 · en cours : boîte 1
+  // maîtrisées : boîte 7 · apprises : boîtes 3 à 6 · en cours : boîtes 1 et 2
   const master = CARDS.filter(c => mastered(c.id)).length;
-  const known = CARDS.filter(c => level(c.id) >= 2 && !mastered(c.id)).length;
-  const review = CARDS.filter(c => seen(c.id) && level(c.id) <= 1).length;
+  const known = CARDS.filter(c => level(c.id) >= 3 && !mastered(c.id)).length;
+  const review = CARDS.filter(c => seen(c.id) && level(c.id) <= 2).length;
   $('stMaster').textContent = master; $('stKnown').textContent = known; $('stReview').textContent = review;
   $('stNew').textContent = CARDS.length - master - known - review;
   document.querySelectorAll('#dirs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === st.prefs.dir));
