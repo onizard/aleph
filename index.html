@@ -227,14 +227,14 @@ delete st.prefs.noMeter; delete st.prefs.realMeter; delete st.misses;
 buildCards();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
 /* ---------- Boîtes de Leitner ----------
-   5 boîtes. Une carte nouvelle entre dans la boîte 1.
-   - Bonne réponse : la carte monte d'une boîte. Elle revient dans 1, 2, 4, 7 ou 14 jours selon sa boîte.
-     Juste dans la boîte 5 : elle est maîtrisée et sort du jeu.
+   Une carte nouvelle entre dans la boîte 1.
+   - Bonne réponse : la carte monte d'une boîte. Elle revient dans 1, 2, 4, 7, 14 ou 60 jours (boîtes 1 à 6).
+     Juste dans la boîte 6 (mémoire à long terme) : elle passe en boîte 7 et ne revient plus.
    - Erreur : la carte redescend dans la boîte 1 et revient 5 à 10 cartes plus loin dans la séance,
      puis le lendemain. */
 const DAY = 86400e3, NEW_PER_DAY = 20; // 20 nouvelles cartes par jour, mélangées aux révisions
-const WAIT = [0, 1, 2, 4, 7, 14];       // jours avant de revoir une carte de la boîte 1, 2, 3, 4, 5
-const DONE = 6;                          // « boîte 6 » = maîtrisée
+const WAIT = [0, 1, 2, 4, 7, 14, 60];   // jours avant de revoir une carte de la boîte 1 … 6
+const LONG = 6, DONE = 7;                // boîte 6 = mémoire à long terme · boîte 7 = maîtrisée, ne revient plus
 const today = () => new Date(Date.now()).toDateString();
 const newToday = () => (st.newDay === today() ? st.newCount || 0 : 0);
 const dayStart = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -248,13 +248,15 @@ const isLearning = b => b && b.learn;
 if (st.v !== 4) {
   for (const b of Object.values(st.boxes)) {
     if (!b) continue;
-    if ((b.s || 0) >= 7) { b.box = DONE; b.learn = false; b.due = -1; }
+    if ((b.s || 0) >= 7) { b.box = LONG; b.learn = false; b.due = inDays(WAIT[LONG]); }
     else if (b.learn || !b.s) { b.box = 1; b.learn = true; b.ldue = st.n + 5; }
     else { b.box = Math.min(5, 1 + b.s); b.learn = false; if (!(b.due > 0)) b.due = inDays(WAIT[b.box]); }
     delete b.ease; delete b.ivl; delete b.lapses; delete b.s;
   }
   st.v = 4; save();
 }
+// boîte 6 : les cartes qui étaient sorties du jeu reviennent dans 60 jours
+if (st.v === 4) { for (const b of Object.values(st.boxes)) if (b && b.box >= LONG) { b.box = LONG; if (!(b.due > 0)) b.due = inDays(WAIT[LONG]); } st.v = 5; save(); }
 function record(id, ok) {
   const isNew = !st.boxes[id];
   const b = st.boxes[id] || { box: 1, ok: 0, ko: 0, learn: false };
@@ -456,7 +458,7 @@ const meter = (() => {
 /* ---------- Interface ---------- */
 const $ = id => document.getElementById(id);
 function refreshHome() {
-  // maîtrisées : sorties de la boîte 5 · apprises : boîtes 2 à 5 · en cours : boîte 1
+  // maîtrisées : boîte 7 · apprises : boîtes 2 à 6 · en cours : boîte 1
   const master = CARDS.filter(c => mastered(c.id)).length;
   const known = CARDS.filter(c => level(c.id) >= 2 && !mastered(c.id)).length;
   const review = CARDS.filter(c => seen(c.id) && level(c.id) <= 1).length;
