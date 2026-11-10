@@ -257,7 +257,7 @@ const level = id => (st.boxes[id] && st.boxes[id].box) || 0;
 const mastered = id => level(id) >= DONE;
 const isLearning = b => b && b.learn;
 // reprise des anciennes données -> boîtes de Leitner
-if (st.v !== 4) {
+if (!st.v || st.v < 4) {
   for (const b of Object.values(st.boxes)) {
     if (!b) continue;
     if ((b.s || 0) >= 7) { b.box = LONG; b.learn = false; b.due = inDays(WAIT[LONG]); }
@@ -269,6 +269,19 @@ if (st.v !== 4) {
 }
 // boîte 6 : les cartes qui étaient sorties du jeu reviennent dans 60 jours
 if (st.v === 4) { for (const b of Object.values(st.boxes)) if (b && b.box >= LONG) { b.box = LONG; if (!(b.due > 0)) b.due = inDays(WAIT[LONG]); } st.v = 5; save(); }
+// réparation : jusqu'ici, la conversion ci-dessus se relançait à chaque ouverture et remettait toutes les cartes
+// en boîte 1. On reconstruit une boîte à partir des bonnes et mauvaises réponses enregistrées.
+if (st.v === 5) {
+  for (const b of Object.values(st.boxes)) {
+    if (!b || !b.learn || b.box !== 1) continue;
+    const ok = b.ok || 0, ko = b.ko || 0;
+    if (!ok) continue;                                   // jamais trouvée : reste à revoir
+    b.learn = false;
+    b.box = !ko ? Math.min(LONG, 3 + ok) : ok > ko ? 3 : 2; // jamais ratée : connue dès le départ
+    b.due = inDays(WAIT[b.box]);
+  }
+  st.v = 6; save();
+}
 function record(id, ok) {
   const isNew = !st.boxes[id];
   const b = st.boxes[id] || { box: 1, ok: 0, ko: 0, learn: false };
