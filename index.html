@@ -40,6 +40,12 @@ h1 span{color:var(--blue)}
 .go{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:2;font-family:var(--f-big);font-weight:800;font-size:1.5rem;border:0;border-radius:20px;padding:20px;background:var(--blue);color:#0B1220;cursor:pointer;box-shadow:0 4px 0 #3D6FCC}
 .share{display:flex;align-items:center;justify-content:center;gap:8px;font:inherit;font-weight:700;color:var(--ink);background:transparent;border:2px solid var(--line);border-radius:16px;padding:14px;cursor:pointer}
 .share:active{transform:translateY(1px)}
+.ctl{display:flex;gap:10px;width:min(360px,88vw)}
+.ctl button{flex:1;font-family:var(--f-big);font-weight:700;font-size:1.1rem;border-radius:16px;padding:16px 8px;cursor:pointer;border:2px solid var(--line);background:var(--panel);color:var(--ink)}
+.ctl .yes{border-color:var(--ok);color:var(--ok)}.ctl .no{border-color:var(--bad);color:var(--bad)}
+.ctl .reveal{background:var(--blue);border-color:var(--blue);color:#0B1220}
+.say{font:inherit;background:none;border:0;color:var(--soft);font-size:1.6rem;cursor:pointer;padding:4px 10px;line-height:1}
+.drive.classic{gap:18px;justify-content:center;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 .go:active{transform:translateY(2px);box-shadow:0 2px 0 #3D6FCC}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
 .stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 4px}
@@ -53,7 +59,7 @@ h1 span{color:var(--blue)}
 /* Écran de conduite */
 .drive{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;
   padding:calc(24px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));
-  background:var(--bg);transition:background .25s}
+  background:var(--bg);transition:background .25s;z-index:10}
 .drive.ok{background:#0F2A1D}.drive.bad{background:#2E1414}
 .state{font-family:var(--f-big);font-weight:700;font-size:1.05rem;letter-spacing:.12em;text-transform:uppercase;color:var(--soft);display:flex;align-items:center;gap:10px}
 .dot{width:14px;height:14px;border-radius:50%;background:var(--soft)}
@@ -125,6 +131,10 @@ h1 span{color:var(--blue)}
   </section>
 
   <section class="panel">
+    <div class="seg" id="modes">
+      <button type="button" data-v="classic" id="mode-classic">Classique</button>
+      <button type="button" data-v="car" id="mode-car">Oral</button>
+    </div>
     <span class="label">Vous êtes</span>
     <div class="seg" id="sexes">
       <button type="button" data-v="m" id="sex-m">Un homme</button>
@@ -145,7 +155,7 @@ h1 span{color:var(--blue)}
 
   <button class="go" id="start" type="button">Démarrer</button>
 
-  <section class="panel">
+  <section class="panel" id="cmdPanel">
     <span class="label">Pendant la séance, dites…</span>
     <ul class="cmds">
       <li><b>« lo yodéa »</b> (je ne sais pas) : l'appli donne la réponse.</li>
@@ -168,11 +178,13 @@ h1 span{color:var(--blue)}
   <div class="stage">
     <div class="card3d" id="card">
       <div class="cface front"><span class="ctag" id="tagFront">En français</span><div class="prompt" id="dPrompt"></div></div>
-      <div class="cface back"><span class="ctag" id="tagBack">En hébreu</span><div class="answer" id="dAnswer"></div><div class="translit" id="dTranslit"></div></div>
+      <div class="cface back"><span class="ctag" id="tagBack">En hébreu</span><div class="answer" id="dAnswer"></div><div class="translit" id="dTranslit"></div><button class="say" id="dSay" type="button" aria-label="Écouter" hidden>🔊</button></div>
     </div>
   </div>
   <canvas id="meter" class="meter" hidden aria-hidden="true"></canvas>
   <div class="heard" id="dHeard"></div>
+  <div class="ctl" id="cReveal" hidden><button class="reveal" type="button" id="bReveal">Voir la réponse</button></div>
+  <div class="ctl" id="cJudge" hidden><button class="no" type="button" id="bNo">Je ne savais pas</button><button class="yes" type="button" id="bYes">Je savais</button></div>
   <button class="stop" id="dStop" type="button">Arrêter</button>
 </section>
 
@@ -181,7 +193,7 @@ const DATA = [{"id":"he-politesse","nom":"Politesse et salutations","cards":[["b
 
 /* ---------- Cartes et mémoire ---------- */
 const KEY = 'aleph-v1';
-let st = { boxes: {}, prefs: { dir: 'fr-he', len: 20, sex: null } };
+let st = { boxes: {}, prefs: { dir: 'fr-he', len: 20, sex: null, mode: 'car' } };
 try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.boxes) st = { ...st, ...s, prefs: { ...st.prefs, ...s.prefs } }; } catch (e) {}
 // on ne garde que les phrases du genre de la personne qui parle (m = homme, f = femme)
 let CARDS = [];
@@ -431,13 +443,17 @@ function refreshHome() {
   $('stNew').textContent = CARDS.length - master - known - review;
   document.querySelectorAll('#dirs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === st.prefs.dir));
   document.querySelectorAll('#lens button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === st.prefs.len)));
+  const car = st.prefs.mode !== 'classic';
+  document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === (car ? 'car' : 'classic'))));
+  $('cmdPanel').hidden = !car;
   document.querySelectorAll('#sexes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.prefs.sex)));
-  $('welcome').hidden = !!st.prefs.sex; $('home').hidden = !st.prefs.sex;
+  $('welcome').hidden = !!st.prefs.sex || !!S; $('home').hidden = !st.prefs.sex || !!S;
   const w = [];
-  if (!SR) w.push("La reconnaissance vocale n'est pas disponible sur ce navigateur. Utilisez <b>Chrome sur Android</b>.");
+  if (car && !SR) w.push("La reconnaissance vocale n'est pas disponible sur ce navigateur. Utilisez <b>Chrome sur Android</b>.");
   if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
   $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
 }
+document.querySelectorAll('#modes button').forEach(b => b.onclick = () => { st.prefs.mode = b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#dirs button').forEach(b => b.onclick = () => { st.prefs.dir = b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#lens button').forEach(b => b.onclick = () => { st.prefs.len = +b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#sexes button, #welcomeSex button').forEach(b => b.onclick = () => { st.prefs.sex = b.dataset.v; save(); buildCards(); refreshHome(); window.scrollTo(0, 0); });
@@ -445,7 +461,7 @@ if (synth) synth.addEventListener && synth.addEventListener('voiceschanged', () 
 setTimeout(refreshHome, 600); refreshHome();
 
 /* ---------- Séance ---------- */
-let S = null, wake = null;
+var S = null; let wake = null;
 function nextCard(lastId) {
   const now = Date.now();
   const pool = CARDS.filter(c => c.id !== lastId && !mastered(c.id));
@@ -543,10 +559,44 @@ async function run() {
     stopSession();
   }
 }
+/* ---------- Version classique : auto-évaluation, sans micro ---------- */
+function runClassic() {
+  const dir = st.prefs.dir, qLang = dir === 'fr-he' ? 'fr' : 'he', aLang = dir === 'fr-he' ? 'he' : 'fr';
+  let c = null;
+  const ask = () => {
+    if (!S || !S.on) return;
+    if (S.len && S.count >= S.len) return stopSession();
+    c = nextCard(S.lastId);
+    if (!c) return stopSession();
+    $('dPrompt').textContent = dir === 'fr-he' ? c.fr : c.he; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr';
+    $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
+    const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
+    show('Question', 'classic'); $('cReveal').hidden = false; $('cJudge').hidden = true;
+    if (qLang === 'he') speak(c.he, 'he', 0.85);
+  };
+  const reveal = () => {
+    if (!c || $('cReveal').hidden) return;
+    $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
+    $('dTranslit').textContent = c.tr;
+    $('card').classList.remove('deal'); $('card').classList.add('flipped');
+    $('cReveal').hidden = true; $('cJudge').hidden = false; show('Réponse', 'classic');
+    if (aLang === 'he') speak(c.he, 'he', 0.85);
+  };
+  const grade = ok => {
+    if (!c || $('cJudge').hidden) return;
+    synth && synth.cancel();
+    S.count++; st.n++; S.lastId = c.id; ok ? S.good++ : S.bad++;
+    record(c.id, ok); ask();
+  };
+  $('bReveal').onclick = reveal; $('card').onclick = reveal;
+  $('bYes').onclick = () => grade(true); $('bNo').onclick = () => grade(false);
+  $('dSay').onclick = e => { e.stopPropagation(); synth && synth.cancel(); speak(c.he, 'he', 0.85); };
+  ask();
+}
 function pause() { if (!S) return; S.paused = true; show('En pause · touchez l\'écran pour reprendre'); }
 $('drive').addEventListener('click', e => {
   if (e.target.id === 'dStop') return;
-  if (S && S.paused) { S.paused = false; const r = S.resume; S.resume = null; r && r(); }
+  if (S && !S.classic && S.paused) { S.paused = false; const r = S.resume; S.resume = null; r && r(); }
 });
 async function stopSession(msg) {
   if (!S) return;
@@ -554,12 +604,17 @@ async function stopSession(msg) {
   try { rec && rec.abort(); } catch (e) {}
   synth && synth.cancel();
   try { wake && wake.release(); } catch (e) {} wake = null;
-  S = null; $('drive').hidden = true; refreshHome();
+  S = null; $('drive').hidden = true; $('cReveal').hidden = $('cJudge').hidden = $('dSay').hidden = true; $('card').onclick = null; refreshHome();
   if (msg) { $('warn').innerHTML = msg; $('warn').hidden = false; }
 }
 $('dStop').onclick = () => stopSession();
 $('start').onclick = async () => {
   pickVoices();
+  if (st.prefs.mode === 'classic') {
+    S = { on: true, classic: true, count: 0, good: 0, bad: 0, len: st.prefs.len, lastId: null };
+    $('home').hidden = true; $('drive').hidden = false; $('dHeard').textContent = ''; $('dSay').hidden = false;
+    runClassic(); return;
+  }
   // demander le micro tout de suite (une seule fois)
   try { if (navigator.mediaDevices) { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } } catch (e) {}
   try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
