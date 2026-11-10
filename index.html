@@ -83,6 +83,7 @@ h1 span{color:var(--blue)}
 .ok .cface.back{border-color:var(--ok);background:linear-gradient(160deg,#173826,#0F2519)}
 .bad .cface.back{border-color:var(--bad);background:linear-gradient(160deg,#3A1A18,#261110)}
 .ctag{position:absolute;top:12px;left:16px;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--soft)}
+.card3d:not(.revealed) .front .corner{display:none}
 .corner{position:absolute;right:0;bottom:0;padding:6px 14px 4px 22px;font-family:var(--f-big);font-weight:800;font-size:2.4rem;line-height:1;color:rgba(111,163,255,.22);cursor:pointer;z-index:1}
 .prompt{font-family:var(--f-big);font-weight:800;font-size:clamp(1.6rem,7.5vw,2.6rem);line-height:1.15;text-wrap:balance;max-width:14ch;overflow-wrap:anywhere}
 .answer{font-family:var(--f-big);font-weight:700;font-size:clamp(1.9rem,9.5vw,3.2rem);line-height:1.15;direction:rtl;color:var(--ok);overflow-wrap:anywhere}
@@ -515,7 +516,7 @@ async function run() {
     const q = dir === 'fr-he' ? c.fr : c.he;
     $('dPrompt').textContent = q; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr';
     $('dHeard').textContent = '';
-    { const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
+    { const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal', 'revealed'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
       $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
       setTimeout(() => { if (!$('card').classList.contains('flipped')) { $('dAnswer').textContent = ''; $('dTranslit').textContent = ''; } }, 50); }
     show('Question');
@@ -541,7 +542,7 @@ async function run() {
     S.count++; st.n++; S.lastId = c.id; S.cur = null;
     $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
     $('dTranslit').textContent = c.tr;
-    $('card').classList.remove('deal'); $('card').classList.add('flipped');
+    $('card').classList.remove('deal'); $('card').classList.add('flipped', 'revealed');
     if (ok) {
       S.good++; record(c.id, true); show('Juste !', 'ok'); beep('ok');
     } else {
@@ -588,7 +589,7 @@ function runClassic() {
     if (!c) return stopSession();
     $('dPrompt').textContent = dir === 'fr-he' ? c.fr : c.he; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr';
     $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
-    const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
+    const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal', 'revealed'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
     show('Question', 'classic'); $('cReveal').hidden = false; $('cJudge').hidden = true;
     if (qLang === 'he') speak(c.say, 'he', 0.85);
   };
@@ -596,7 +597,7 @@ function runClassic() {
     if (!c || $('cReveal').hidden) return;
     $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
     $('dTranslit').textContent = c.tr;
-    $('card').classList.remove('deal'); $('card').classList.add('flipped');
+    $('card').classList.remove('deal'); $('card').classList.add('flipped', 'revealed');
     $('cReveal').hidden = true; $('cJudge').hidden = false; show('Réponse', 'classic');
     if (aLang === 'he') speak(c.say, 'he', 0.85);
   };
@@ -606,7 +607,7 @@ function runClassic() {
     S.count++; st.n++; S.lastId = c.id; ok ? S.good++ : S.bad++;
     record(c.id, ok); ask();
   };
-  $('bReveal').onclick = reveal; $('card').onclick = reveal;
+  $('bReveal').onclick = reveal;
   $('bYes').onclick = () => grade(true); $('bNo').onclick = () => grade(false);
   $('dSay').onclick = e => { e.stopPropagation(); synth && synth.cancel(); speak(c.say, 'he', 0.85); };
   ask();
@@ -622,13 +623,13 @@ async function stopSession(msg) {
   try { rec && rec.abort(); } catch (e) {}
   synth && synth.cancel();
   try { wake && wake.release(); } catch (e) {} wake = null;
-  S = null; $('drive').hidden = true; $('cReveal').hidden = $('cJudge').hidden = $('dSay').hidden = true; $('card').onclick = null; refreshHome();
+  S = null; $('drive').hidden = true; $('cReveal').hidden = $('cJudge').hidden = $('dSay').hidden = true; refreshHome();
   if (msg) { $('warn').innerHTML = msg; $('warn').hidden = false; }
 }
 $('dStop').onclick = () => stopSession();
 // le coin « א » retourne la carte, pour revoir l'autre face une fois la réponse affichée
 $('card').addEventListener('click', e => {
-  if (!e.target.closest('.corner') || !$('dAnswer').textContent) return;
+  if (!e.target.closest('.corner') || !$('card').classList.contains('revealed')) return;
   e.stopImmediatePropagation(); $('card').classList.remove('deal'); $('card').classList.toggle('flipped');
 }, true);
 $('start').onclick = async () => {
