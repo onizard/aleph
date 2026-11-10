@@ -83,8 +83,8 @@ h1 span{color:var(--blue)}
 .ok .cface.back{border-color:var(--ok);background:linear-gradient(160deg,#173826,#0F2519)}
 .bad .cface.back{border-color:var(--bad);background:linear-gradient(160deg,#3A1A18,#261110)}
 .ctag{position:absolute;top:12px;left:16px;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--soft)}
-.card3d:not(.revealed) .front .corner{display:none}
-.corner{position:absolute;right:0;bottom:0;padding:6px 14px 4px 22px;font-family:var(--f-big);font-weight:800;font-size:2.4rem;line-height:1;color:rgba(111,163,255,.22);cursor:pointer;z-index:1}
+.cface::after{content:"א";position:absolute;right:14px;bottom:4px;font-family:var(--f-big);font-weight:800;font-size:2.4rem;color:rgba(111,163,255,.10)}
+.card3d.revealed{cursor:pointer}
 .prompt{font-family:var(--f-big);font-weight:800;font-size:clamp(1.6rem,7.5vw,2.6rem);line-height:1.15;text-wrap:balance;max-width:14ch;overflow-wrap:anywhere}
 .answer{font-family:var(--f-big);font-weight:700;font-size:clamp(1.9rem,9.5vw,3.2rem);line-height:1.15;direction:rtl;color:var(--ok);overflow-wrap:anywhere}
 .bad .answer{color:#FFD9D4}
@@ -178,8 +178,8 @@ h1 span{color:var(--blue)}
   <div class="state"><i class="dot"></i><span id="dState">Prêt</span></div>
   <div class="stage">
     <div class="card3d" id="card">
-      <div class="cface front"><span class="ctag" id="tagFront">En français</span><div class="prompt" id="dPrompt"></div><span class="corner" aria-hidden="true">א</span></div>
-      <div class="cface back"><span class="ctag" id="tagBack">En hébreu</span><div class="answer" id="dAnswer"></div><div class="translit" id="dTranslit"></div><button class="say" id="dSay" type="button" aria-label="Écouter" hidden>🔊</button><span class="corner" aria-hidden="true">א</span></div>
+      <div class="cface front"><span class="ctag" id="tagFront">En français</span><div class="prompt" id="dPrompt"></div></div>
+      <div class="cface back"><span class="ctag" id="tagBack">En hébreu</span><div class="answer" id="dAnswer"></div><div class="translit" id="dTranslit"></div><button class="say" id="dSay" type="button" aria-label="Écouter" hidden>🔊</button></div>
     </div>
   </div>
   <canvas id="meter" class="meter" hidden aria-hidden="true"></canvas>
@@ -649,9 +649,9 @@ async function stopSession(msg) {
   if (msg) { $('warn').innerHTML = msg; $('warn').hidden = false; }
 }
 $('dStop').onclick = () => stopSession();
-// le coin « א » retourne la carte, pour revoir l'autre face une fois la réponse affichée
+// une fois la réponse affichée, toucher la carte n'importe où la retourne (recto / verso)
 $('card').addEventListener('click', e => {
-  if (!e.target.closest('.corner') || !$('card').classList.contains('revealed')) return;
+  if (e.target.closest('.say') || !$('card').classList.contains('revealed')) return;
   e.stopImmediatePropagation(); $('card').classList.remove('deal'); $('card').classList.toggle('flipped');
 }, true);
 $('start').onclick = async () => {
