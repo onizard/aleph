@@ -196,12 +196,30 @@ const KEY = 'aleph-v1';
 let st = { boxes: {}, prefs: { dir: 'fr-he', len: 20, sex: null, mode: 'car' } };
 try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.boxes) st = { ...st, ...s, prefs: { ...st.prefs, ...s.prefs } }; } catch (e) {}
 // on ne garde que les phrases du genre de la personne qui parle (m = homme, f = femme)
+// Sans voyelles, la voix lit « אני רוצה » au féminin (ani rotsa). On ajoute les voyelles
+// des mots ambigus selon la prononciation notée sur la carte (rotsé / rotsa, lekha / lakh…).
+const VOC = [
+  ['rotsé', 'רוצה', 'רוֹצֶה'], ['rotsa', 'רוצה', 'רוֹצָה'],
+  ['kholé', 'חולה', 'חוֹלֶה'], ['kholah', 'חולה', 'חוֹלָה'],
+  ["gué'é", 'גאה', 'גֵּאֶה'], ["gué'a", 'גאה', 'גֵּאָה'],
+  ['lekha', 'לך', 'לְךָ'], ['lakh', 'לך', 'לָךְ'],
+  ['bekha', 'בך', 'בְּךָ'], ['bakh', 'בך', 'בָּךְ'],
+  ['otkha', 'אותך', 'אוֹתְךָ'], ['otakh', 'אותך', 'אוֹתָךְ'],
+  ['shelkha', 'שלך', 'שֶׁלְּךָ'], ['shelakh', 'שלך', 'שֶׁלָּךְ'],
+  ['élékha', 'אליך', 'אֵלֶיךָ'], ['élayikh', 'אליך', 'אֵלַיִךְ']
+];
+function vocalize(he, tr) {
+  const toks = tr.toLowerCase().split(/[\s,.!?…]+/);
+  let out = he;
+  for (const [t, w, v] of VOC) if (toks.includes(t)) out = out.replace(new RegExp('(^|[\\s])' + w + '(?=$|[\\s?!.,…])', 'g'), '$1' + v);
+  return out;
+}
 let CARDS = [];
 function buildCards() {
   CARDS = [];
   for (const t of DATA) for (const [fr, he, tr, g] of t.cards) {
     if (g && st.prefs.sex && g !== st.prefs.sex) continue;
-    CARDS.push({ id: t.id + '|' + he + '|' + fr, theme: t.id, fr, he, tr });
+    CARDS.push({ id: t.id + '|' + he + '|' + fr, theme: t.id, fr, he, tr, say: vocalize(he, tr) });
   }
 }
 delete st.prefs.noMeter; delete st.prefs.realMeter; delete st.misses;
@@ -501,7 +519,7 @@ async function run() {
       $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
       setTimeout(() => { if (!$('card').classList.contains('flipped')) { $('dAnswer').textContent = ''; $('dTranslit').textContent = ''; } }, 50); }
     show('Question');
-    await speak(q, qLang, qLang === 'he' ? 0.85 : 0.95);
+    await speak(qLang === 'he' ? c.say : q, qLang, qLang === 'he' ? 0.85 : 0.95);
     if (!S || !S.on) break;
     let res, tries = 0;
     while (true) {
@@ -529,7 +547,7 @@ async function run() {
     } else {
       // fausse : la réponse s'affiche tout de suite (carte retournée) et la voix la dit une fois
       S.bad++; record(c.id, false); show('À revoir', 'bad'); beep('bad');
-      const ans = aLang === 'he' ? c.he : c.fr, rate = aLang === 'he' ? 0.8 : 0.95;
+      const ans = aLang === 'he' ? c.say : c.fr, rate = aLang === 'he' ? 0.8 : 0.95;
       await speak(ans, aLang, rate);
       // la carte réponse reste affichée jusqu'à ce que la bonne réponse soit répétée ; la carte reste comptée comme ratée
       let slow = rate, misses = 0;
@@ -572,7 +590,7 @@ function runClassic() {
     $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
     const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
     show('Question', 'classic'); $('cReveal').hidden = false; $('cJudge').hidden = true;
-    if (qLang === 'he') speak(c.he, 'he', 0.85);
+    if (qLang === 'he') speak(c.say, 'he', 0.85);
   };
   const reveal = () => {
     if (!c || $('cReveal').hidden) return;
@@ -580,7 +598,7 @@ function runClassic() {
     $('dTranslit').textContent = c.tr;
     $('card').classList.remove('deal'); $('card').classList.add('flipped');
     $('cReveal').hidden = true; $('cJudge').hidden = false; show('Réponse', 'classic');
-    if (aLang === 'he') speak(c.he, 'he', 0.85);
+    if (aLang === 'he') speak(c.say, 'he', 0.85);
   };
   const grade = ok => {
     if (!c || $('cJudge').hidden) return;
@@ -590,7 +608,7 @@ function runClassic() {
   };
   $('bReveal').onclick = reveal; $('card').onclick = reveal;
   $('bYes').onclick = () => grade(true); $('bNo').onclick = () => grade(false);
-  $('dSay').onclick = e => { e.stopPropagation(); synth && synth.cancel(); speak(c.he, 'he', 0.85); };
+  $('dSay').onclick = e => { e.stopPropagation(); synth && synth.cancel(); speak(c.say, 'he', 0.85); };
   ask();
 }
 function pause() { if (!S) return; S.paused = true; show('En pause · touchez l\'écran pour reprendre'); }
