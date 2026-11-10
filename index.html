@@ -277,6 +277,8 @@ function record(id, ok) {
     b.ok++;
     // une carte ratée puis retrouvée dans la séance reste en boîte 1 et revient demain
     if (b.learn) { b.learn = false; b.box = 1; }
+    // mot nouveau réussi du premier coup : déjà connu, il saute directement en boîte 4 (revient dans 7 jours)
+    else if (isNew) b.box = 4;
     else b.box = Math.min(DONE, (b.box || 1) + 1);
     b.due = b.box >= DONE ? -1 : inDays(WAIT[b.box]);
   } else {
