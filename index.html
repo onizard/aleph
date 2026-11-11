@@ -249,7 +249,7 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catc
      Juste dans la boîte 6 (mémoire à long terme) : elle passe en boîte 7 et ne revient plus.
    - Erreur : la carte redescend dans la boîte 1 et revient 5 à 10 cartes plus loin dans la séance,
      puis le lendemain. */
-const DAY = 86400e3, NEW_PER_DAY = 20; // 20 nouvelles cartes par jour, mélangées aux révisions
+const DAY = 86400e3, NEW_PER_DAY = 20, MAX_LEARN = 4; // au-delà de 4 cartes ratées en attente, plus de nouvelles cartes // 20 nouvelles cartes par jour, mélangées aux révisions
 const WAIT = [0, 1, 2, 4, 7, 14, 60];   // jours avant de revoir une carte de la boîte 1 … 6
 const LONG = 6, DONE = 7;                // boîte 6 = mémoire à long terme · boîte 7 = maîtrisée, ne revient plus
 const today = () => new Date(Date.now()).toDateString();
@@ -524,12 +524,15 @@ function nextCard(lastId) {
   // 1) une carte ratée dont le tour est revenu dans la séance (5 à 10 cartes plus tard)
   const learn = pool.filter(c => isLearning(box(c))).sort((x, y) => box(x).ldue - box(y).ldue);
   if (learn.length && box(learn[0]).ldue <= st.n) return learn[0];
+  // trop de cartes ratées en attente : pas de nouvelles cartes, on consolide d'abord
+  const full = CARDS.filter(c => isLearning(box(c))).length >= MAX_LEARN;
   // 2) les révisions du jour, mélangées aux nouvelles cartes (une sur deux) tant que le quota du jour n'est pas atteint
   const due = pool.filter(c => seen(c.id) && !isLearning(box(c)) && box(c).due <= now).sort((x, y) => box(x).due - box(y).due);
   const fresh = pool.find(c => !seen(c.id));
-  const canNew = fresh && newToday() < NEW_PER_DAY;
+  const canNew = fresh && !full && newToday() < NEW_PER_DAY;
   if (due.length && canNew) return st.n % 2 ? fresh : due[0];
   if (due.length) return due[0];
+  if (full) return learn[0];
   // 3) une nouvelle carte, dans l'ordre d'utilité (au-delà du quota si la séance continue)
   if (fresh) return fresh;
   // 4) plus rien de nouveau : on reprend les cartes ratées, puis les prochaines révisions
