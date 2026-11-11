@@ -76,7 +76,7 @@ h1 span{color:var(--blue)}
 .card3d.deal{animation:deal .45s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes deal{from{transform:translateX(70vw) rotate(10deg);opacity:0}to{transform:none;opacity:1}}
 .cface{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:22px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:22px 18px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:36px 18px 26px;
   background:linear-gradient(160deg,#1C2A47,#14203A);border:2px solid var(--line);
   box-shadow:0 18px 40px -16px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden}
 .cface.back{transform:rotateY(180deg);background:linear-gradient(160deg,#1A2E2A,#13211F)}
@@ -582,7 +582,7 @@ async function run() {
     const c = S.cur || nextCard(S.lastId); S.cur = c;
     if (!c) { await speak('Bravo ! Toutes les cartes sont apprises.', 'fr'); break; }
     const q = dir === 'fr-he' ? c.fr : c.he;
-    $('dPrompt').textContent = q; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr';
+    $('dPrompt').textContent = q; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr'; fitText($('dPrompt'));
     $('dHeard').textContent = '';
     { const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal', 'revealed'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
       $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
@@ -608,7 +608,7 @@ async function run() {
     if (!S || !S.on || S.paused) continue;
     const ok = !!res.right;
     S.count++; st.n++; S.lastId = c.id; S.cur = null;
-    $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
+    $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : ''); $('dTranslit').textContent = c.tr; fitText($('dAnswer'));
     $('dTranslit').textContent = c.tr;
     $('card').classList.remove('deal'); $('card').classList.add('flipped', 'revealed');
     if (ok) {
@@ -651,6 +651,15 @@ async function run() {
   }
 }
 /* ---------- Version classique : auto-évaluation, sans micro ---------- */
+// réduit la taille du texte jusqu'à ce que tout tienne sur la carte
+function fitText(el) {
+  const face = el.closest('.cface'); el.style.fontSize = '';
+  const items = () => [...face.children].filter(x => !x.classList.contains('ctag') && !x.hidden);
+  const need = () => items().reduce((h, x) => h + x.offsetHeight, 0) + 10 * (items().length - 1);
+  const room = () => { const cs = getComputedStyle(face); return face.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom); };
+  let fs = parseFloat(getComputedStyle(el).fontSize);
+  while (need() > room() && fs > 15) { fs *= 0.9; el.style.fontSize = fs + 'px'; }
+}
 function runClassic() {
   const dir = st.prefs.dir, qLang = dir === 'fr-he' ? 'fr' : 'he', aLang = dir === 'fr-he' ? 'he' : 'fr';
   let c = null;
@@ -659,7 +668,7 @@ function runClassic() {
     if (S.len && S.count >= S.len) return stopSession();
     c = nextCard(S.lastId);
     if (!c) return stopSession();
-    $('dPrompt').textContent = dir === 'fr-he' ? c.fr : c.he; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr';
+    $('dPrompt').textContent = dir === 'fr-he' ? c.fr : c.he; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr'; fitText($('dPrompt'));
     $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
     const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal', 'revealed'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
     show('Question', 'classic'); $('cReveal').hidden = false; $('cJudge').hidden = true;
@@ -667,7 +676,7 @@ function runClassic() {
   };
   const reveal = () => {
     if (!c || $('cReveal').hidden) return;
-    $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : '');
+    $('dAnswer').textContent = aLang === 'he' ? c.he : c.fr; $('dAnswer').className = 'answer' + (aLang === 'fr' ? ' fr' : ''); $('dTranslit').textContent = c.tr; fitText($('dAnswer'));
     $('dTranslit').textContent = c.tr;
     $('card').classList.remove('deal'); $('card').classList.add('flipped', 'revealed');
     $('cReveal').hidden = true; $('cJudge').hidden = false; show('Réponse', 'classic');
