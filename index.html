@@ -413,9 +413,14 @@ function speak(text, lang, rate = 0.95) {
     const v = lang === 'he' ? vHe : vFr;
     u.lang = v ? v.lang : (lang === 'he' ? 'he-IL' : 'fr-FR'); if (v) u.voice = v;
     u.rate = rate;
-    let done = false; const fin = () => { if (!done) { done = true; setTimeout(res, 60); } };
+    let done = false, poll = 0, safety = 0;
+    const fin = () => { if (!done) { done = true; clearInterval(poll); clearTimeout(safety); setTimeout(res, 60); } };
     u.onend = fin; u.onerror = fin;
-    setTimeout(fin, 1500 + text.length * 180); // sécurité si onend ne vient pas
+    // Sur iPhone, la fin de la voix (onend) arrive souvent avec plusieurs secondes de retard :
+    // on surveille aussi directement si la voix parle encore.
+    const t0 = Date.now();
+    poll = setInterval(() => { if (Date.now() - t0 > 350 && !synth.speaking && !synth.pending) fin(); }, 80);
+    safety = setTimeout(fin, 1500 + text.length * 180 / rate); // sécurité ultime
     synth.speak(u);
   });
 }
