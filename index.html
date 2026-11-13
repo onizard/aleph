@@ -376,10 +376,20 @@ function expectedOptions(c, lang) {
   const base = c.fr.replace(/\([^)]*\)/g, ' ');
   return base.split(/,|\/| ou /).map(normFr).filter(x => x.length > 1).concat([normFr(c.fr)]);
 }
+// la reconnaissance écrit souvent les heures et nombres en chiffres (« ב-9:00 ») : on les remet en mots
+const HOURW = ['אפס', 'אחת', 'שתיים', 'שלוש', 'ארבע', 'חמש', 'שש', 'שבע', 'שמונה', 'תשע', 'עשר', 'אחת עשרה', 'שתים עשרה'];
+const timeWord = (h, mm) => {
+  h = +h; if (mm !== undefined && h > 12) h -= 12;
+  if (h > 12) return null;
+  const w = HOURW[h], m = mm === undefined ? '' : { '00': '', '15': ' ורבע', '30': ' וחצי' }[mm];
+  return m === undefined ? null : w + m;
+};
+const digitsHe = s => s.replace(/(^|\s)([בלמהוש]?)[-־]?(\d{1,2})(?::(\d{2}))?(?=[\s?!.,]|$)/g,
+  (all, sp, pre, h, mm) => { const w = timeWord(h, mm); return w ? sp + pre + w : all; });
 function judge(alts, c, lang) {
   const opts = expectedOptions(c, lang);
   for (const raw of alts) {
-    const s = lang === 'he' ? normHe(raw) : normFr(raw);
+    const s = lang === 'he' ? normHe(digitsHe(raw)) : normFr(raw);
     if (lang === 'he' && /^\d+$/.test(s.replace(/ /g, '')) && opts.some(o => NUM[o] === s.replace(/ /g, ''))) return true;
     if (opts.some(o => close(s, o))) return true;
   }
