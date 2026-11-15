@@ -576,6 +576,8 @@ function refreshHome() {
   document.querySelectorAll('#sexes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.prefs.sex)));
   $('welcome').hidden = !!st.prefs.sex || !!S; $('home').hidden = !st.prefs.sex || !!S;
   const w = [];
+  // iPhone, appli ouverte depuis l'écran d'accueil : Apple y coupe le micro de la dictée
+  if (car && IOS && navigator.standalone) w.push("Sur iPhone, la version orale ne marche que dans Safari : depuis l'icône de l'écran d'accueil, Apple coupe le micro. <a href=\"x-safari-https://onizard.github.io/aleph/\" style=\"color:inherit;font-weight:700\">Ouvrir dans Safari</a>");
   if (car && !SR) w.push("La reconnaissance vocale n'est pas disponible sur ce navigateur. Utilisez <b>Chrome sur Android</b>.");
   if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
   $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
