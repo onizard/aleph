@@ -406,6 +406,7 @@ const isStop = s => /^(עצור|תעצור|די|stop|pause|arrête)$/i.test(norm
 
 /* ---------- Voix ---------- */
 const synth = window.speechSynthesis;
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let vHe = null, vFr = null;
 function pickVoices() {
   if (!synth) return;
@@ -426,16 +427,21 @@ function speak(text, lang, rate = 0.95) {
     if (!synth) return res();
     const u = new SpeechSynthesisUtterance((lang === 'he' ? fixHe(text) : text).replace(/…/g, ' '));
     const v = lang === 'he' ? vHe : vFr;
-    u.lang = v ? v.lang : (lang === 'he' ? 'he-IL' : 'fr-FR'); if (v) u.voice = v;
+    u.lang = v ? v.lang : (lang === 'he' ? 'he-IL' : 'fr-FR'); if (v && !IOS) u.voice = v;
     u.rate = rate;
     let done = false, poll = 0, safety = 0;
     const fin = () => { if (!done) { done = true; clearInterval(poll); clearTimeout(safety); setTimeout(res, 60); } };
     u.onend = fin; u.onerror = fin;
     // Sur iPhone, la fin de la voix (onend) arrive souvent avec plusieurs secondes de retard :
     // on surveille aussi directement si la voix parle encore.
-    const t0 = Date.now();
-    poll = setInterval(() => { if (Date.now() - t0 > 350 && !synth.speaking && !synth.pending) fin(); }, 80);
+    const t0 = Date.now(); let started = false;
+    poll = setInterval(() => {
+      if (synth.speaking) started = true;
+      if ((started && !synth.speaking && !synth.pending) || (!started && Date.now() - t0 > 3000)) fin();
+    }, 80);
+    u.onstart = () => { started = true; };
     safety = setTimeout(fin, 1500 + text.length * 180 / rate); // sécurité ultime
+    if (IOS && !synth.speaking) synth.cancel(); // débloque une file restée coincée
     synth.speak(u);
   });
 }
@@ -748,6 +754,8 @@ $('card').addEventListener('click', e => {
 }, true);
 $('start').onclick = async () => {
   pickVoices();
+  // iPhone : la voix ne fonctionne qu'après une première phrase lancée directement par un toucher
+  if (synth) { try { const u0 = new SpeechSynthesisUtterance(' '); u0.volume = 0; u0.lang = 'fr-FR'; synth.speak(u0); } catch (e) {} }
   if (st.prefs.mode === 'classic') {
     S = { on: true, classic: true, count: 0, good: 0, bad: 0, len: st.prefs.len, lastId: null };
     $('home').hidden = true; $('drive').hidden = false; $('dHeard').textContent = ''; $('dSay').hidden = false;
