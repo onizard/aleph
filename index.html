@@ -46,6 +46,9 @@ h1 span{color:var(--blue)}
 .ctl .reveal{background:var(--blue);border-color:var(--blue);color:#0B1220}
 .say{font:inherit;background:none;border:0;color:var(--soft);font-size:1.6rem;cursor:pointer;padding:4px 10px;line-height:1}
 .drive.classic{gap:18px;justify-content:center;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+#blackout{position:fixed;inset:0;background:#000;z-index:60;display:flex;align-items:flex-end;justify-content:center;padding-bottom:40px}
+#blackout span{color:#fff;opacity:.18;font-size:.85rem;transition:opacity 2s}
+#blackout.quiet span{opacity:0}
 .go:active{transform:translateY(2px);box-shadow:0 2px 0 #3D6FCC}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
 .stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 4px}
@@ -136,6 +139,7 @@ h1 span{color:var(--blue)}
       <button type="button" data-v="classic" id="mode-classic">Classique</button>
       <button type="button" data-v="car" id="mode-car">Oral</button>
     </div>
+    <div class="seg" id="darkRow"><button type="button" id="darkBtn">Écran noir pendant la séance</button></div>
     <span class="label">Vous êtes</span>
     <div class="seg" id="sexes">
       <button type="button" data-v="m" id="sex-m">Un homme</button>
@@ -172,6 +176,7 @@ h1 span{color:var(--blue)}
     <span>Partager l'appli</span>
   </button>
 </main>
+<div id="blackout" hidden><span>Touchez deux fois pour rallumer</span></div>
 
 <section class="drive" id="drive" hidden aria-live="polite">
   <div class="bar"><span id="dCount">0 / 20</span><span id="dScore">✓ 0 · ✗ 0</span></div>
@@ -544,7 +549,8 @@ function refreshHome() {
   document.querySelectorAll('#lens button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === st.prefs.len)));
   const car = st.prefs.mode !== 'classic';
   document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === (car ? 'car' : 'classic'))));
-  $('cmdPanel').hidden = !car;
+  $('cmdPanel').hidden = !car; $('darkRow').hidden = !car;
+  $('darkBtn').setAttribute('aria-pressed', String(!!st.prefs.dark));
   document.querySelectorAll('#sexes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.prefs.sex)));
   $('welcome').hidden = !!st.prefs.sex || !!S; $('home').hidden = !st.prefs.sex || !!S;
   const w = [];
@@ -552,6 +558,18 @@ function refreshHome() {
   if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
   $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
 }
+$('darkBtn').onclick = () => { st.prefs.dark = !st.prefs.dark; save(); refreshHome(); };
+/* ---------- Écran noir : l'appli continue, l'écran reste allumé mais tout noir (batterie, poche) ---------- */
+let darkTimer = 0, lastTap = 0;
+function blackout(on) {
+  clearTimeout(darkTimer); const b = $('blackout');
+  b.hidden = !on; b.classList.remove('quiet');
+  if (on) setTimeout(() => b.classList.add('quiet'), 3000);
+}
+function armDark() { clearTimeout(darkTimer); if (S && !S.classic && st.prefs.dark) darkTimer = setTimeout(() => blackout(true), 6000); }
+$('blackout').addEventListener('dblclick', () => { blackout(false); armDark(); });
+$('blackout').addEventListener('touchend', e => { e.preventDefault(); const t = Date.now(); if (t - lastTap < 400) { blackout(false); armDark(); } lastTap = t; });
+document.addEventListener('pointerdown', () => { if ($('blackout').hidden) armDark(); });
 document.querySelectorAll('#modes button').forEach(b => b.onclick = () => { st.prefs.mode = b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#dirs button').forEach(b => b.onclick = () => { st.prefs.dir = b.dataset.v; save(); refreshHome(); });
 document.querySelectorAll('#lens button').forEach(b => b.onclick = () => { st.prefs.len = +b.dataset.v; save(); refreshHome(); });
@@ -719,7 +737,7 @@ async function stopSession(msg) {
   try { rec && rec.abort(); } catch (e) {}
   synth && synth.cancel();
   try { wake && wake.release(); } catch (e) {} wake = null;
-  S = null; $('drive').hidden = true; $('cReveal').hidden = $('cJudge').hidden = $('dSay').hidden = true; refreshHome();
+  blackout(false); S = null; $('drive').hidden = true; $('cReveal').hidden = $('cJudge').hidden = $('dSay').hidden = true; refreshHome();
   if (msg) { $('warn').innerHTML = msg; $('warn').hidden = false; }
 }
 $('dStop').onclick = () => stopSession();
@@ -741,6 +759,7 @@ $('start').onclick = async () => {
   beep('listen');
   S = { on: true, paused: false, count: 0, good: 0, bad: 0, len: st.prefs.len, cur: null, lastId: null };
   $('home').hidden = true; $('drive').hidden = false;
+  armDark();
   run();
 };
 document.addEventListener('visibilitychange', async () => {
