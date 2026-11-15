@@ -513,13 +513,19 @@ function listen(lang, ms, check) {
       };
       r.onspeechstart = () => meter.speaking();
       r.onspeechend = () => meter.quiet();
+      // diagnostic discret (iPhone) : ce que fait le micro
+      if (IOS) {
+        r.onaudiostart = () => { if (!spoke) $('dHeard').textContent = 'micro : ouvert'; };
+        r.onsoundstart = () => { if (!spoke) $('dHeard').textContent = 'micro : son détecté'; };
+      }
       r.onerror = e => {
+        if (IOS && !spoke && e.error !== 'aborted') $('dHeard').textContent = 'micro : ' + e.error;
         lastErr = e.error;
         if (['not-allowed', 'service-not-allowed', 'language-not-supported', 'network', 'audio-capture'].includes(e.error)) finish({ error: e.error });
       };
       // la reconnaissance s'arrête d'elle-même après une pause : on la relance tout de suite
       r.onend = () => { if (!finished && Date.now() - t0 < ms - 400) setTimeout(startOne, 30); };
-      try { r.start(); } catch (e) { finish({ error: 'start' }); }
+      try { r.start(); } catch (e) { if (IOS) $('dHeard').textContent = 'micro : ' + (e.name || 'start'); finish({ error: 'start' }); }
     }
     startOne(); meter.start();
   });
