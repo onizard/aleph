@@ -440,7 +440,8 @@ function speak(text, lang, rate = 0.95) {
       if ((started && !synth.speaking && !synth.pending) || (!started && Date.now() - t0 > 3000)) fin();
     }, 80);
     u.onstart = () => { started = true; };
-    safety = setTimeout(fin, 1500 + text.length * 180 / rate); // sécurité ultime
+    // sécurité : si la voix reste coincée (iPhone), on l'arrête et on continue
+    safety = setTimeout(() => { if (IOS) synth.cancel(); fin(); }, 1500 + text.length * 110 / rate);
     if (IOS && !synth.speaking) synth.cancel(); // débloque une file restée coincée
     synth.speak(u);
   });
@@ -762,7 +763,8 @@ $('start').onclick = async () => {
     runClassic(); return;
   }
   // demander le micro tout de suite (une seule fois)
-  try { if (navigator.mediaDevices) { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } } catch (e) {}
+  // (pas sur iPhone : ouvrir le micro ici bloque ensuite la voix ; la reconnaissance le demandera elle-même)
+  if (!IOS) try { if (navigator.mediaDevices) { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } } catch (e) {}
   try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
   beep('listen');
   S = { on: true, paused: false, count: 0, good: 0, bad: 0, len: st.prefs.len, cur: null, lastId: null };
