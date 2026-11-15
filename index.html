@@ -457,6 +457,7 @@ let actx = null;
 function beep(kind) {
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
     const notes = kind === 'ok' ? [660, 880] : kind === 'bad' ? [300, 220] : [520];
     notes.forEach((f, i) => {
       const o = actx.createOscillator(), g = actx.createGain();
@@ -492,6 +493,8 @@ function listen(lang, ms, check) {
     const timer = setTimeout(() => finish(result()), ms);
     function startOne() {
       if (finished) return;
+      // iPhone : les bips gardent le son en mode « lecture » et le micro reçoit du silence
+      if (IOS) { try { actx && actx.state === 'running' && actx.suspend(); } catch (e) {} }
       r = rec = new SR();
       r.lang = lang === 'he' ? 'he-IL' : 'fr-FR';
       r.interimResults = true; r.maxAlternatives = 5; r.continuous = false;
@@ -768,6 +771,8 @@ $('card').addEventListener('click', e => {
 $('start').onclick = async () => {
   pickVoices();
   // iPhone : la voix ne fonctionne qu'après une première phrase lancée directement par un toucher
+  // iPhone (iOS 17+) : autoriser à la fois la lecture et l'enregistrement
+  if (IOS && navigator.audioSession) { try { navigator.audioSession.type = 'play-and-record'; } catch (e) {} }
   if (synth) { try { const u0 = new SpeechSynthesisUtterance(' '); u0.volume = 0; u0.lang = 'fr-FR'; synth.speak(u0); } catch (e) {} }
   if (st.prefs.mode === 'classic') {
     S = { on: true, classic: true, count: 0, good: 0, bad: 0, len: st.prefs.len, lastId: null };
