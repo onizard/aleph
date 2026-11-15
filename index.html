@@ -406,6 +406,12 @@ const isStop = s => /^(עצור|תעצור|די|stop|pause|arrête)$/i.test(norm
 
 /* ---------- Voix ---------- */
 const synth = window.speechSynthesis;
+// message clair quand la reconnaissance vocale est bloquée
+function micMsg(err) {
+  if (IOS && err === 'language-not-supported') return "Votre iPhone ne sait pas encore écouter l'hébreu. Ajoutez le clavier hébreu : Réglages → Général → Clavier → Claviers → Ajouter un clavier → Hébreu. Vérifiez aussi que « Activer Dictée » est allumé, puis relancez.";
+  if (IOS) return "Le micro ou la dictée est bloqué. Sur iPhone : Réglages → Général → Clavier → activez « Activer Dictée » et ajoutez le clavier hébreu. Puis Réglages → Safari → Micro → Autoriser.";
+  return "Le micro est bloqué. Autorisez le micro pour ce site dans Chrome.";
+}
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let vHe = null, vFr = null;
 function pickVoices() {
@@ -509,7 +515,7 @@ function listen(lang, ms, check) {
       r.onspeechend = () => meter.quiet();
       r.onerror = e => {
         lastErr = e.error;
-        if (['not-allowed', 'service-not-allowed', 'network', 'audio-capture'].includes(e.error)) finish({ error: e.error });
+        if (['not-allowed', 'service-not-allowed', 'language-not-supported', 'network', 'audio-capture'].includes(e.error)) finish({ error: e.error });
       };
       // la reconnaissance s'arrête d'elle-même après une pause : on la relance tout de suite
       r.onend = () => { if (!finished && Date.now() - t0 < ms - 400) setTimeout(startOne, 30); };
@@ -635,7 +641,7 @@ async function run() {
       show('À vous…', 'listening'); await beep('listen');
       res = await listen(aLang, 8000, alts => judge(alts, c, aLang));
       if (!S || !S.on) return;
-      if (res.error === 'not-allowed' || res.error === 'service-not-allowed') { await stopSession("Le micro est bloqué. Autorisez le micro pour ce site dans Chrome."); return; }
+      if (['not-allowed', 'service-not-allowed', 'language-not-supported'].includes(res.error)) { await stopSession(micMsg(res.error)); return; }
       if (res.error === 'network') { await speak("Pas de connexion internet. Je fais une pause.", 'fr'); pause(); break; }
       const said = res.alts ? res.alts.join(' / ') : '';
       if (res.alts) $('dHeard').innerHTML = 'Entendu : <b>' + res.alts[0].replace(/[<&]/g, '') + '</b>';
@@ -665,7 +671,7 @@ async function run() {
         show(`Répétez la réponse · ${done + 1}/${REPEATS}`, 'bad'); await beep('listen');
         const r2 = await listen(aLang, 10000, a => judge(a, c, aLang));
         if (!S || !S.on) return;
-        if (r2.error === 'not-allowed' || r2.error === 'service-not-allowed') { await stopSession("Le micro est bloqué. Autorisez le micro pour ce site dans Chrome."); return; }
+        if (['not-allowed', 'service-not-allowed', 'language-not-supported'].includes(r2.error)) { await stopSession(micMsg(r2.error)); return; }
         if (r2.right || (r2.alts && judge(r2.alts, c, aLang))) {
           done++; show(done >= REPEATS ? 'Bien répété' : `Bien · encore ${REPEATS - done}`, 'ok'); await beep('ok');
           if (done >= REPEATS) break; else continue;
