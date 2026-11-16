@@ -176,7 +176,7 @@ h1 span{color:var(--blue)}
       <li><b>Après une erreur</b>, la réponse reste affichée : répétez-la correctement 3 fois pour passer à la carte suivante.</li>
       <li><b>« od pa'am »</b> (encore une fois) : elle répète.</li>
       <li><b>« atsor »</b> (stop) : pause. Touchez l'écran pour reprendre.</li>
-      <li>Si vous ne dites rien pendant 8 secondes, la réponse est donnée.</li>
+      <li>Si vous ne dites rien pendant 5 secondes, la réponse est donnée. Si vous parlez, vous avez jusqu'à 15 secondes.</li>
     </ul>
   </section>
 
@@ -483,7 +483,9 @@ function beep(kind) {
 /* ---------- Écoute ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null;
-function listen(lang, ms, check) {
+const FILLER = /^((euh+|heu+|hum+|hmm+|mmm*|ah+|eh+|bah|ben|אממ*|אמ+|אה+|אהה+|ממ+|רגע|שנייה|כאילו)[\s,.…]*)+$/i;
+function listen(lang, ms, check, longMs = 15000) {
+  // ms : délai si l'on n'entend rien · longMs : délai maximal dès qu'on entend quelqu'un parler
   // Écoute robuste : une reconnaissance courte à la fois, relancée aussitôt qu'elle s'arrête,
   // jusqu'à la bonne réponse, 1,3 s de silence après avoir parlé, ou la fin du délai.
   // Tout ce qui est dit est gardé, même avec des pauses ou des mots autour.
@@ -500,7 +502,12 @@ function listen(lang, ms, check) {
       if (finished) return; finished = true; clearTimeout(timer); clearTimeout(quiet);
       try { r && r.abort(); } catch (x) {} rec = null; meter.stop(); res(o);
     };
-    const timer = setTimeout(() => finish(result()), ms);
+    let limit = ms, timer = setTimeout(() => finish(result()), ms);
+    // on entend parler : on laisse jusqu'à longMs au total (et on attend la fin de la phrase)
+    const extend = () => {
+      if (finished || limit >= longMs) return; limit = longMs;
+      clearTimeout(timer); timer = setTimeout(() => finish(result()), Math.max(0, limit - (Date.now() - t0)));
+    };
     function startOne() {
       if (finished) return;
       // iPhone : les bips gardent le son en mode « lecture » et le micro reçoit du silence
@@ -509,7 +516,7 @@ function listen(lang, ms, check) {
       r.lang = lang === 'he' ? 'he-IL' : 'fr-FR';
       r.interimResults = true; r.maxAlternatives = 5; r.continuous = false;
       r.onresult = e => {
-        spoke = true; meter.speaking();
+        spoke = true; meter.speaking(); extend();
         cur = []; curBest = '';
         for (let i = 0; i < e.results.length; i++) {
           const rr = e.results[i];
@@ -522,9 +529,11 @@ function listen(lang, ms, check) {
         if (a[0]) $('dHeard').innerHTML = 'Entendu : <b>' + a[0].replace(/[<&]/g, '') + '</b>';
         if (check && check(a)) { finish({ alts: a, right: true }); return; }
         clearTimeout(quiet);
-        if (e.results[e.results.length - 1].isFinal) quiet = setTimeout(() => finish(result()), 1300);
+        // une vraie réponse puis 2,5 s de silence : on tranche. Une simple hésitation (« euh », « אממ ») ne compte pas.
+        const lastTxt = e.results[e.results.length - 1][0].transcript;
+        if (e.results[e.results.length - 1].isFinal && !FILLER.test(lastTxt.trim())) quiet = setTimeout(() => finish(result()), 2500);
       };
-      r.onspeechstart = () => meter.speaking();
+      r.onspeechstart = () => { meter.speaking(); extend(); };
       r.onspeechend = () => meter.quiet();
       // diagnostic discret (iPhone) : ce que fait le micro
       if (IOS) {
@@ -537,7 +546,7 @@ function listen(lang, ms, check) {
         if (['not-allowed', 'service-not-allowed', 'language-not-supported', 'network', 'audio-capture'].includes(e.error)) finish({ error: e.error });
       };
       // la reconnaissance s'arrête d'elle-même après une pause : on la relance tout de suite
-      r.onend = () => { if (!finished && Date.now() - t0 < ms - 400) setTimeout(startOne, 30); };
+      r.onend = () => { if (!finished && Date.now() - t0 < limit - 400) setTimeout(startOne, 30); };
       try { r.start(); } catch (e) { if (IOS) $('dHeard').textContent = 'micro : ' + (e.name || 'start'); finish({ error: 'start' }); }
     }
     startOne(); meter.start();
@@ -661,7 +670,7 @@ async function run() {
     let res, tries = 0;
     while (true) {
       show('À vous…', 'listening'); await beep('listen');
-      res = await listen(aLang, 8000, alts => judge(alts, c, aLang));
+      res = await listen(aLang, 5000, alts => judge(alts, c, aLang));
       if (!S || !S.on) return;
       if (['not-allowed', 'service-not-allowed', 'language-not-supported'].includes(res.error)) { await stopSession(micMsg(res.error)); return; }
       if (res.error === 'network') { await speak("Pas de connexion internet. Je fais une pause.", 'fr'); pause(); break; }
@@ -692,7 +701,7 @@ async function run() {
       stars(0); // 3 étoiles à allumer, une par bonne répétition
       while (S && S.on) {
         show(`Répétez la réponse · ${done + 1}/${REPEATS}`, 'bad'); await beep('listen');
-        const r2 = await listen(aLang, 10000, a => judge(a, c, aLang));
+        const r2 = await listen(aLang, 5000, a => judge(a, c, aLang));
         if (!S || !S.on) return;
         if (['not-allowed', 'service-not-allowed', 'language-not-supported'].includes(r2.error)) { await stopSession(micMsg(r2.error)); return; }
         if (r2.right || (r2.alts && judge(r2.alts, c, aLang))) {
