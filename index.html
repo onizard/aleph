@@ -517,14 +517,16 @@ function listen(lang, ms, check, longMs = 15000) {
       if (IOS) { try { actx && actx.state === 'running' && actx.suspend(); } catch (e) {} }
       r = rec = new SR();
       r.lang = lang === 'he' ? 'he-IL' : 'fr-FR';
-      r.interimResults = true; r.maxAlternatives = 5; r.continuous = false;
+      r.interimResults = true; r.maxAlternatives = 1; r.continuous = false;
       r.onresult = e => {
         spoke = true; meter.speaking(); extend();
         cur = []; curBest = '';
         for (let i = 0; i < e.results.length; i++) {
           const rr = e.results[i];
-          if (rr.isFinal) { finals.push(rr[0].transcript); for (const x of rr) finalAlts.push(x.transcript); }
-          else { curBest += ' ' + rr[0].transcript; for (const x of rr) cur.push(x.transcript); }
+          // seule la meilleure transcription compte : les autres « hypothèses » de Google contiennent
+          // souvent la bonne réponse même quand on s'est trompé, ce qui validait à tort
+          if (rr.isFinal) { finals.push(rr[0].transcript); finalAlts.push(rr[0].transcript); }
+          else { curBest += ' ' + rr[0].transcript; cur.push(rr[0].transcript); }
         }
         // une fois rangés dans « finals », on vide la session courante pour ne pas les compter deux fois
         if (Array.from(e.results).every(x => x.isFinal)) { cur = []; curBest = ''; }
