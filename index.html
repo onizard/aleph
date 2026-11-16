@@ -378,9 +378,18 @@ function close(said, exp) {
   // phrases : chaque mot attendu doit être dit (petites fautes tolérées sur les mots longs)
   const ew = exp.split(' ').filter(Boolean);
   if (ew.length >= 2) {
+    // … et dans le bon ordre (des mots en trop autour restent tolérés)
     const sw = said.split(' ').filter(Boolean);
-    const joined = said.replace(/ /g, '');
-    return ew.every(e => sw.some(w => wordOk(w, e)) || (e.length >= 4 && joined.includes(e)));
+    let pos = 0;
+    for (const e of ew) {
+      let k = sw.findIndex((w, i) => i >= pos && wordOk(w, e));
+      if (k < 0 && e.length >= 4) {               // mot collé à un autre par la transcription
+        for (let i = pos; i < sw.length && k < 0; i++) if (sw.slice(i).join('').startsWith(e) || sw[i].includes(e)) k = i;
+      }
+      if (k < 0) return false;
+      pos = k + 1;
+    }
+    return true;
   }
   const a = said.replace(/ /g, ''), b = exp.replace(/ /g, '');
   if (a === b || snd(a) === snd(b)) return true;
