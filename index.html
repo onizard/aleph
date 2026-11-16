@@ -690,6 +690,7 @@ async function run() {
     $('card').classList.remove('deal'); $('card').classList.add('flipped', 'revealed');
     if (ok) {
       S.good++; record(c.id, true); show('Juste !', 'ok'); beep('ok');
+      if (aLang === 'he') await speak(c.say, 'he', 0.85); // on réentend la bonne prononciation
     } else {
       // fausse : la réponse s'affiche tout de suite (carte retournée) et la voix la dit une fois
       S.bad++; record(c.id, false); show('À revoir', 'bad'); beep('bad');
