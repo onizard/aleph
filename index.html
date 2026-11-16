@@ -410,7 +410,7 @@ function judge(alts, c, lang) {
   }
   return false;
 }
-const isDontKnow = s => /לא יוד|אין לי מושג|דלג|תדלג|ne sais pas|sais pas|passe/.test(s);
+const isDontKnow = s => /לא יוד|אין לי מושג|דלג|תדלג|ne sais pas|sais pas|j'en sais rien|passe/.test(s);
 const isRepeat = s => /עוד פעם|שוב|תחזור|encore|répète/.test(s);
 const isStop = s => /^(עצור|תעצור|די|stop|pause|arrête)$/i.test(normHe(s)) || /(^| )עצור( |$)/.test(normHe(s));
 
@@ -528,6 +528,8 @@ function listen(lang, ms, check, longMs = 15000) {
         const a = alts();
         if (a[0]) $('dHeard').innerHTML = 'Entendu : <b>' + a[0].replace(/[<&]/g, '') + '</b>';
         if (check && check(a)) { finish({ alts: a, right: true }); return; }
+        // « ani lo yodéa » / « je ne sais pas » : on donne la réponse tout de suite, sans attendre le silence
+        if (a.some(isDontKnow)) { finish({ alts: a, dontKnow: true }); return; }
         clearTimeout(quiet);
         // une vraie réponse puis 2,5 s de silence : on tranche. Une simple hésitation (« euh », « אממ ») ne compte pas.
         const lastTxt = e.results[e.results.length - 1][0].transcript;
