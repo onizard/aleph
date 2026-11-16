@@ -780,7 +780,7 @@ function runClassic() {
     if (qLang === 'he') setHe($('dPrompt'), c); else $('dPrompt').textContent = c.fr; $('dPrompt').dir = qLang === 'he' ? 'rtl' : 'ltr'; fitText($('dPrompt'));
     $('tagFront').textContent = qLang === 'he' ? 'En hébreu' : 'En français'; $('tagBack').textContent = aLang === 'he' ? 'En hébreu' : 'En français';
     const cd = $('card'); cd.classList.add('instant'); cd.classList.remove('flipped', 'deal', 'revealed'); void cd.offsetWidth; cd.classList.remove('instant'); cd.classList.add('deal');
-    show('Question', 'classic'); $('cReveal').hidden = false; $('cJudge').hidden = true;
+    stars(-1); show('Question', 'classic'); $('cReveal').hidden = false; $('cJudge').hidden = true;
     if (qLang === 'he') speak(c.say, 'he', 0.85);
   };
   const reveal = () => {
@@ -813,7 +813,7 @@ async function stopSession(msg) {
   try { rec && rec.abort(); } catch (e) {}
   synth && synth.cancel();
   try { wake && wake.release(); } catch (e) {} wake = null;
-  blackout(false); S = null; $('drive').hidden = true; $('cReveal').hidden = $('cJudge').hidden = $('dSay').hidden = true; refreshHome();
+  blackout(false); stars(-1); S = null; $('drive').hidden = true; $('cReveal').hidden = $('cJudge').hidden = $('dSay').hidden = true; refreshHome();
   if (msg) { $('warn').innerHTML = msg; $('warn').hidden = false; }
 }
 $('dStop').onclick = () => stopSession();
