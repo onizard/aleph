@@ -151,7 +151,6 @@ h1 span{color:var(--blue)}
       <button type="button" data-v="classic" id="mode-classic">Classique</button>
       <button type="button" data-v="car" id="mode-car">Oral</button>
     </div>
-    <div class="seg" id="darkRow"><button type="button" id="darkBtn">Écran noir pendant la séance</button></div>
     <span class="label">Vous êtes</span>
     <div class="seg" id="sexes">
       <button type="button" data-v="m" id="sex-m">Un homme</button>
@@ -607,8 +606,7 @@ function refreshHome() {
   document.querySelectorAll('#lens button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === st.prefs.len)));
   const car = st.prefs.mode !== 'classic';
   document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === (car ? 'car' : 'classic'))));
-  $('cmdPanel').hidden = !car; $('darkRow').hidden = !car;
-  $('darkBtn').setAttribute('aria-pressed', String(!!st.prefs.dark));
+  $('cmdPanel').hidden = !car;
   document.querySelectorAll('#sexes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.prefs.sex)));
   $('welcome').hidden = !!st.prefs.sex || !!S; $('home').hidden = !st.prefs.sex || !!S;
   const w = [];
@@ -618,7 +616,6 @@ function refreshHome() {
   if (synth && synth.getVoices().length && !vHe) w.push("Aucune voix hébraïque trouvée. Sur Android : Paramètres → Synthèse vocale → Google → Installer les données vocales → <b>Hébreu</b>.");
   $('warn').innerHTML = w.join('<br>'); $('warn').hidden = !w.length;
 }
-$('darkBtn').onclick = () => { st.prefs.dark = !st.prefs.dark; save(); refreshHome(); };
 /* ---------- Écran noir : l'appli continue, l'écran reste allumé mais tout noir (batterie, poche) ---------- */
 let darkTimer = 0, lastTap = 0;
 function blackout(on) {
@@ -626,7 +623,7 @@ function blackout(on) {
   b.hidden = !on; b.classList.remove('quiet');
   if (on) setTimeout(() => b.classList.add('quiet'), 3000);
 }
-function armDark() { clearTimeout(darkTimer); if (S && !S.classic && st.prefs.dark) darkTimer = setTimeout(() => blackout(true), 6000); }
+function armDark() { clearTimeout(darkTimer); } // option « écran noir » retirée
 $('blackout').addEventListener('dblclick', () => { blackout(false); armDark(); });
 $('blackout').addEventListener('touchend', e => { e.preventDefault(); const t = Date.now(); if (t - lastTap < 400) { blackout(false); armDark(); } lastTap = t; });
 document.addEventListener('pointerdown', () => { if ($('blackout').hidden) armDark(); });
