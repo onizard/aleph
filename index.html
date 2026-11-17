@@ -187,6 +187,7 @@ h1 span{color:var(--blue)}
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
     <span>Partager l'appli</span>
   </button>
+  <button class="link" id="bilan" type="button" style="align-self:center;background:none;border:0;color:var(--soft);font:inherit;font-size:.85rem;text-decoration:underline;cursor:pointer;padding:6px">Copier mon bilan pour Claude</button>
 </main>
 <div id="blackout" hidden><span>Touchez deux fois pour rallumer</span></div>
 
@@ -848,6 +849,24 @@ document.addEventListener('visibilitychange', async () => {
 });
 </script>
 <script>
+// bilan des boîtes (invisible dans l'appli) à copier-coller dans la conversation avec Claude
+document.getElementById('bilan').addEventListener('click', async () => {
+  const now = Date.now(), B = Object.values(st.boxes), day = 864e5, tom = new Date(); tom.setHours(24, 0, 0, 0);
+  const box = [1, 2, 3, 4, 5, 6, 7].map(k => B.filter(b => (b.box || 0) === k).length);
+  const due = n => B.filter(b => !b.learn && b.due > 0 && b.due < tom.getTime() + (n - 1) * day).length;
+  const txt = ['Bilan Aleph — ' + new Date().toLocaleString('fr-FR'),
+    'Cartes : ' + CARDS.length + ' · vues : ' + B.length + ' · jamais vues : ' + (CARDS.length - CARDS.filter(c => st.boxes[c.id]).length),
+    'Boîtes 1→7 : ' + box.join(' / '),
+    'Ratées en attente (à retrouver) : ' + B.filter(b => b.learn).length,
+    'À réviser : aujourd\'hui ' + due(1) + ' · sous 3 j ' + due(3) + ' · sous 7 j ' + due(7),
+    'Nouvelles aujourd\'hui : ' + newToday() + '/' + NEW_PER_DAY + ' · cartes passées au total : ' + (st.n || 0),
+    'Réponses : ' + B.reduce((a, b) => a + (b.ok || 0), 0) + ' justes · ' + B.reduce((a, b) => a + (b.ko || 0), 0) + ' fausses',
+    'Mode : ' + (st.prefs.mode || 'car') + ' · sens : ' + st.prefs.dir + ' · ' + (st.prefs.sex || '?')].join('\n');
+  const b = $('bilan');
+  try { await navigator.clipboard.writeText(txt); b.textContent = 'Bilan copié : collez-le dans la conversation'; }
+  catch (e) { prompt('Copiez ce bilan :', txt); }
+  setTimeout(() => (b.textContent = 'Copier mon bilan pour Claude'), 4000);
+});
 document.getElementById('share').addEventListener('click', async () => {
   const url = 'https://onizard.github.io/aleph/', b = document.querySelector('#share span');
   const data = { title: 'Aleph', text: "Aleph : des flashcards d'hébreu à la voix, mains libres (idéal en voiture).", url };
