@@ -424,10 +424,20 @@ const timeWord = (h, mm) => {
 };
 const digitsHe = s => s.replace(/(^|\s)([בלמהוש]?)[-־]?(\d{1,2})(?::(\d{2}))?(?=[\s?!.,]|$)/g,
   (all, sp, pre, h, mm) => { const w = timeWord(h, mm); return w ? sp + pre + w : all; });
+// hébreu biblique : la dictée écrit l'orthographe moderne (קרה pour קָרָא, אלוהים pour אֱלֹהִים…).
+// On compare alors le « squelette sonore » : lettres muettes retirées, lettres qui se prononcent pareil fusionnées.
+const FIN = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' }, SAME = { 'ק': 'כ', 'ח': 'כ', 'ט': 'ת', 'ס': 'ש', 'ע': 'א' };
+const phon = w => [...w].map(ch => FIN[ch] || ch).map(ch => SAME[ch] || ch).join('')
+  .replace(/ה$/, '').replace(/(.)[וי]/g, '$1').replace(/א/g, '');
+const phonLine = s => s.split(' ').filter(Boolean).map(phon).join(' ');
 function judge(alts, c, lang) {
   const opts = expectedOptions(c, lang);
   for (const raw of alts) {
     const s = lang === 'he' ? normHe(digitsHe(raw)) : normFr(raw);
+    if (lang === 'he' && c.theme.startsWith('torah')) {
+      const p = phonLine(s);
+      if (opts.some(o => { const q = phonLine(o); return q.replace(/ /g, '').length >= 2 && q === p; })) return true;
+    }
     if (lang === 'he' && /^\d+$/.test(s.replace(/ /g, '')) && opts.some(o => NUM[o] === s.replace(/ /g, ''))) return true;
     if (opts.some(o => close(s, o))) return true;
   }
