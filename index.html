@@ -447,6 +447,14 @@ function judge(alts, c, lang) {
     if (lang === 'he' && c.theme.startsWith('torah')) {
       const p = phonLine(s);
       if (opts.some(o => { const q = phonLine(o); return q.replace(/ /g, '').length >= 2 && q === p; })) return true;
+      // mots d'une syllabe (פֶּה, יָד, דָּם…) : la dictée ajoute souvent l'article ou le « et » (הפה, ופה)
+      if (/^[הו]\S+$/.test(s) && opts.some(o => !o.includes(' ') && (s.slice(1) === o || phon(s.slice(1)) === phon(o)))) return true;
+      // … ou les écrit en lettres latines (« P », « pe », « yad »)
+      const lat = raw.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+      if (lat) {
+        const t = (c.tr || '').toLowerCase().normalize('NFD').replace(/[^a-z\/]/g, '').split('/');
+        if (t.some(x => x && (x === lat || x.replace(/kh/g, 'h') === lat.replace(/kh/g, 'h') || (x.length <= 3 && lat === x.replace(/[aeiou]+$/, ''))))) return true;
+      }
     }
     if (lang === 'he' && /^\d+$/.test(s.replace(/ /g, '')) && opts.some(o => NUM[o] === s.replace(/ /g, ''))) return true;
     if (opts.some(o => close(s, o))) return true;
