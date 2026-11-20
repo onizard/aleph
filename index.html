@@ -356,7 +356,9 @@ if (st.v === 5) {
   }
   st.v = 6; save();
 }
+let lastOk = true; // une nouvelle carte ne vient qu'après une bonne réponse (le rattrapage aux 3 étoiles ne compte pas)
 function record(id, ok) {
+  lastOk = ok;
   const isNew = !st.boxes[id];
   const b = st.boxes[id] || { box: 1, ok: 0, ko: 0, learn: false };
   if (isNew) { const k = dk(); if (st['newDay' + k] !== today()) { st['newDay' + k] = today(); st['newCount' + k] = 0; } st['newCount' + k]++; }
@@ -700,15 +702,15 @@ function nextCard(lastId) {
   // 2) les révisions du jour, mélangées aux nouvelles cartes (une sur deux) tant que le quota du jour n'est pas atteint
   const due = pool.filter(c => seen(c.id) && !isLearning(box(c)) && box(c).due <= now).sort((x, y) => box(x).due - box(y).due);
   const fresh = pool.find(c => !seen(c.id));
-  const canNew = fresh && !full && newToday() < NEW_PER_DAY;
+  const canNew = fresh && !full && lastOk && newToday() < NEW_PER_DAY;
   if (due.length && canNew) return st.n % 2 ? fresh : due[0];
   if (due.length) return due[0];
   if (full) return learn[0];
   // 3) une nouvelle carte, dans l'ordre d'utilité (au-delà du quota si la séance continue)
-  if (fresh) return fresh;
+  if (fresh && lastOk) return fresh;
   // 4) plus rien de nouveau : on reprend les cartes ratées, puis les prochaines révisions
   if (learn.length) return learn[0];
-  return pool.filter(c => seen(c.id)).sort((x, y) => box(x).due - box(y).due)[0] || null;
+  return pool.filter(c => seen(c.id)).sort((x, y) => box(x).due - box(y).due)[0] || fresh || null;
 }
 function stars(n, blink) { const el = $('stars'); el.hidden = n < 0; [...el.children].forEach((s, i) => s.classList.toggle('on', i < n)); el.classList.toggle('blink', !!blink); }
 function show(state, cls) {
