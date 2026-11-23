@@ -260,6 +260,9 @@ const HOMO = {
   'דוד': { david: 'דָּוִד', dod: 'דּוֹד', doud: 'דּוּד' }, 'הדוד': { hadoud: 'הַדּוּד', hadod: 'הַדּוֹד' }, 'אתן': { aten: 'אַתֶּן', eten: 'אֶתֵּן' }
 };
 const plain = w => w.toLowerCase().normalize('NFD').replace(/[̀-ͯ']/g, '');
+// passé « tu as … » (masculin) : sans voyelles, la voix lit la forme féminine (« hevanet » au lieu de « hevanta »)
+for (const [w, t, v] of [['הבנת', 'hevanta', 'הֵבַנְתָּ'], ['אכלת', 'akhalta', 'אָכַלְתָּ'], ['היית', 'hayita', 'הָיִיתָ'], ['התקשרת', 'hitkasharta', 'הִתְקַשַּׁרְתָּ'], ['עשית', 'asita', 'עָשִׂיתָ'], ['ראית', "ra'ita", 'רָאִיתָ']])
+  (HOMO[w] = HOMO[w] || {})[plain(t)] = v;
 function vocalize(he, tr) {
   const toks = tr.toLowerCase().split(/[\s,.!?…]+/);
   let out = he;
