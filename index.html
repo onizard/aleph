@@ -55,6 +55,12 @@ h1 span{color:var(--blue)}
 .stats div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 4px}
 .stats b{display:block;font-family:var(--f-big);font-size:1.35rem;line-height:1.2;font-variant-numeric:tabular-nums}
 .stats span{font-size:.74rem;color:var(--soft)}
+.goldring{position:fixed;z-index:50;pointer-events:none;border:4px solid #f5c542;border-radius:26px;box-shadow:0 0 28px 6px rgba(245,197,66,.65),inset 0 0 22px rgba(245,197,66,.35);animation:goldin 1.8s ease-out both}
+.goldring span{position:absolute;left:50%;top:-18px;transform:translateX(-50%);background:#f5c542;color:#2a1d00;font-weight:800;font-size:.95rem;padding:4px 12px;border-radius:999px;white-space:nowrap}
+@keyframes goldin{0%{opacity:0;transform:scale(.9)}15%{opacity:1;transform:scale(1.03)}30%{transform:scale(1)}85%{opacity:1}100%{opacity:0}}
+.stats div.gold{border:2px solid #f5c542;box-shadow:0 0 16px 3px rgba(245,197,66,.55);animation:goldtile 1.2s ease-in-out 3}
+.stats div.gold b{color:#f5c542}
+@keyframes goldtile{50%{box-shadow:0 0 26px 7px rgba(245,197,66,.8)}}
 .cmds{margin:0;padding-left:18px;color:var(--soft)}
 .cmds b{color:var(--ink)}
 .warn{background:rgba(255,107,94,.12);border:1px solid var(--bad);border-radius:12px;padding:12px;color:var(--ink)}
@@ -365,6 +371,7 @@ let lastOk = true; // une nouvelle carte ne vient qu'après une bonne réponse (
 function record(id, ok) {
   lastOk = ok;
   const isNew = !st.boxes[id];
+  const wasM = !isNew && (st.boxes[id].box || 0) >= DONE;
   const b = st.boxes[id] || { box: 1, ok: 0, ko: 0, learn: false };
   if (isNew) { const k = dk(); if (st['newDay' + k] !== today()) { st['newDay' + k] = today(); st['newCount' + k] = 0; } st['newCount' + k]++; }
   if (ok) {
@@ -380,6 +387,7 @@ function record(id, ok) {
     b.learn = true; b.ldue = st.n + 5 + Math.floor(Math.random() * 6);
   }
   st.boxes[id] = b; save();
+  return ok && b.box >= DONE && !wasM; // vrai : la carte vient d'entrer dans « maîtrisées »
 }
 
 /* ---------- Comparaison des réponses ---------- */
@@ -568,6 +576,35 @@ function beep(kind) {
   return new Promise(r => setTimeout(r, kind === 'listen' ? 90 : 0));
 }
 
+/* carte qui passe en « maîtrisées » : fanfare + cercle doré */
+function fanfare() {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const out = actx.createGain(), lp = actx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 2400; out.gain.value = 0.22; lp.connect(out); out.connect(actx.destination);
+    // ta-ta-ta-taaa (sol do mi sol… do aigu tenu), son de trompette : dent de scie filtrée, deux voix légèrement désaccordées
+    [[392, 0, .13], [523, .14, .13], [659, .28, .13], [784, .42, .2], [659, .64, .12], [1047, .78, .7]].forEach(([f, t0, d]) => {
+      for (const det of [-6, 6]) {
+        const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + t0;
+        o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det; o.connect(g); g.connect(lp);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.03);
+        g.gain.setValueAtTime(0.5, t + d - 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        o.start(t); o.stop(t + d + 0.02);
+      }
+    });
+  } catch (e) {}
+}
+function celebrate() {
+  fanfare();
+  const r = $('card').getBoundingClientRect(), ring = document.createElement('div');
+  ring.className = 'goldring';
+  Object.assign(ring.style, { left: r.left - 6 + 'px', top: r.top - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 12 + 'px' });
+  ring.innerHTML = '<span>🏆 Maîtrisée !</span>';
+  document.body.appendChild(ring);
+  return new Promise(res => setTimeout(() => { ring.remove(); res(); }, 1800));
+}
+
 /* ---------- Écoute ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null;
@@ -676,6 +713,10 @@ function refreshHome() {
   const master = CARDS.filter(c => mastered(c.id)).length;
   const known = CARDS.filter(c => level(c.id) >= 3 && !mastered(c.id)).length;
   const review = CARDS.filter(c => seen(c.id) && level(c.id) <= 2).length;
+  // de nouvelles cartes maîtrisées depuis la dernière fois : la case s'entoure d'or
+  const mk = 'seenMaster' + dk(), tile = $('stMaster').parentNode;
+  if (st[mk] !== undefined && master > st[mk]) { tile.classList.remove('gold'); void tile.offsetWidth; tile.classList.add('gold'); setTimeout(() => tile.classList.remove('gold'), 6000); }
+  st[mk] = master; save();
   $('stMaster').textContent = master; $('stKnown').textContent = known; $('stReview').textContent = review;
   $('stNew').textContent = CARDS.length - master - known - review;
   document.querySelectorAll('#dirs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === st.prefs.dir));
@@ -782,7 +823,7 @@ async function run() {
     $('dTranslit').textContent = c.tr;
     $('card').classList.remove('deal'); $('card').classList.add('flipped', 'revealed');
     if (ok) {
-      S.good++; record(c.id, true); show('Juste !', 'ok'); beep('ok');
+      S.good++; if (record(c.id, true)) { show('Maîtrisée !', 'ok'); await celebrate(); } else { show('Juste !', 'ok'); beep('ok'); }
       if (aLang === 'he') await speak(c.say, 'he', 0.85); // on réentend la bonne prononciation
     } else {
       // fausse : la réponse s'affiche tout de suite (carte retournée) et la voix la dit une fois
@@ -901,7 +942,7 @@ function runClassic() {
     if (!c || $('cJudge').hidden) return;
     synth && synth.cancel();
     S.count++; st.n++; S.lastId = c.id; ok ? S.good++ : S.bad++;
-    record(c.id, ok); ask();
+    if (record(c.id, ok)) { $('cJudge').hidden = true; celebrate().then(ask); } else ask();
   };
   $('bReveal').onclick = reveal;
   $('bYes').onclick = () => grade(true); $('bNo').onclick = () => grade(false);
