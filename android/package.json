@@ -1,0 +1,13 @@
+{
+  "name": "aleph-android",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Coque Android d'Aleph : charge onizard.github.io/aleph et fournit la voix, l'écoute et le micro Bluetooth natifs",
+  "dependencies": {
+    "@capacitor/android": "8.6.2",
+    "@capacitor/cli": "8.6.2",
+    "@capacitor/core": "8.6.2",
+    "@capacitor-community/speech-recognition": "7.0.1",
+    "@capacitor-community/text-to-speech": "8.0.2"
+  }
+}

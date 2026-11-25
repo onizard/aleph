@@ -1,0 +1,10 @@
+{
+  "appId": "fr.onizard.aleph",
+  "appName": "Aleph",
+  "webDir": "www",
+  "server": {
+    "url": "https://onizard.github.io/aleph/",
+    "androidScheme": "https",
+    "allowNavigation": ["onizard.github.io"]
+  }
+}
