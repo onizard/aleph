@@ -566,6 +566,7 @@ function beep(kind) {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
     if (actx.state === 'suspended') actx.resume();
     const notes = kind === 'ok' ? [660, 880] : kind === 'bad' ? [300, 220] : [520];
+    window.__beepEnd = Date.now() + notes.length * 140 + 80; // appli Android : la voix attend la fin du bip (sinon elle le coupe)
     notes.forEach((f, i) => {
       const o = actx.createOscillator(), g = actx.createGain();
       o.frequency.value = f; o.type = 'sine'; o.connect(g); g.connect(actx.destination);
@@ -597,7 +598,7 @@ function fanfare() {
   } catch (e) {}
 }
 function celebrate() {
-  fanfare();
+  fanfare(); window.__beepEnd = Date.now() + 1600;
   const r = $('card').getBoundingClientRect(), ring = document.createElement('div');
   ring.className = 'goldring';
   Object.assign(ring.style, { left: r.left - 6 + 'px', top: r.top - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 12 + 'px' });

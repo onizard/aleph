@@ -40,8 +40,18 @@
         await perm; await bt.on(); if (this._done) return;
         this.onstart && this.onstart();
         status(btOn ? '🎙️ Écoute (micro Bluetooth)…' : '🎙️ Écoute (micro du téléphone)…');
+        const w = (window.__beepEnd || 0) - Date.now(); if (w > 0) await new Promise(r => setTimeout(r, w)); // laisser finir le bip
+        if (this._done) return;
         try { await call('SpeechRecognition', 'start', { language: this.lang, maxResults: 1, partialResults: true, popup: false }); }
-        catch (e) { status('⚠️ Écoute impossible : ' + ((e && e.message) || e)); this._fail(e); }
+        catch (e) { status('⚠️ Écoute impossible : ' + ((e && e.message) || e)); this._fail(e); return; }
+        // Android coupe l'écoute tout seul après un court silence (sans prévenir la page) :
+        // on le détecte pour relancer aussitôt une nouvelle écoute, comme dans Chrome
+        const t0 = Date.now();
+        this._poll = setInterval(async () => {
+          if (this._done) { clearInterval(this._poll); return; }
+          if (this._stopped || Date.now() - t0 < 800) return;
+          try { const r = await call('SpeechRecognition', 'isListening'); if (r && r.listening === false && !this._done && !this._stopped) this._end(); } catch (e) {}
+        }, 400);
       })();
     }
     _res(t, fin) {
@@ -55,9 +65,9 @@
       this.onerror && this.onerror({ error: /permission/i.test(m) ? 'not-allowed' : /network/i.test(m) ? 'network' : 'no-speech' });
       this._end();
     }
-    _end() { clearTimeout(this._endT); if (this._done) return; if (this._t) this._res(this._t, true); this._done = true; if (cur === this) cur = null; bt.offSoon(); this.onend && this.onend(); }
+    _end() { clearTimeout(this._endT); clearInterval(this._poll); if (this._done) return; if (this._t) this._res(this._t, true); this._done = true; if (cur === this) cur = null; bt.offSoon(); this.onend && this.onend(); }
     stop() { call('SpeechRecognition', 'stop').catch(() => {}); }
-    abort() { this._done = true; if (cur === this) cur = null; call('SpeechRecognition', 'stop').catch(() => {}); bt.offSoon(); }
+    abort() { clearInterval(this._poll); clearTimeout(this._endT); this._done = true; if (cur === this) cur = null; call('SpeechRecognition', 'stop').catch(() => {}); bt.offSoon(); }
   }
   on('SpeechRecognition', 'partialResults', d => {
     const m = d && d.matches && d.matches[0], c = cur; if (!c || !m) return;
@@ -79,6 +89,7 @@
     speak(u) {
       (async () => {
         await bt.off();
+        const w = (window.__beepEnd || 0) - Date.now(); if (w > 0) await new Promise(r => setTimeout(r, w)); // ne pas couper le bip
         this.speaking = true; u.onstart && u.onstart();
         try {
           await call('TextToSpeech', 'speak', { text: u.text, lang: String(u.lang || 'fr-FR').replace(/^iw/, 'he'), rate: u.rate || 1, pitch: 1, volume: u.volume == null ? 1 : u.volume, category: 'playback' });
