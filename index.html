@@ -164,6 +164,9 @@ h1 span{color:var(--blue)}
       <button type="button" data-v="car" id="mode-car">Mode micro</button>
       <button type="button" data-v="dodo" id="mode-dodo">Mode dodo</button>
     </div>
+    <div class="seg" id="btRow" hidden>
+      <button type="button" id="btBtn">Micro des oreillettes / du kit voiture : non</button>
+    </div>
     <span class="label">Vous êtes</span>
     <div class="seg" id="sexes">
       <button type="button" data-v="m" id="sex-m">Un homme</button>
@@ -727,6 +730,9 @@ function refreshHome() {
   const mode = st.prefs.mode || 'car', car = mode === 'car';
   document.querySelectorAll('#decks button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === (st.prefs.deck || 'moderne'))));
   document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === mode)));
+  $('btRow').hidden = IOS || !car;
+  $('btBtn').textContent = 'Micro des oreillettes / du kit voiture : ' + (st.prefs.bt ? 'oui' : 'non');
+  $('btBtn').setAttribute('aria-pressed', String(!!st.prefs.bt));
   $('cmdPanel').hidden = !car;
   document.querySelectorAll('#sexes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.prefs.sex)));
   $('welcome').hidden = !!st.prefs.sex || !!S; $('home').hidden = !st.prefs.sex || !!S;
@@ -749,6 +755,7 @@ function armDark() { clearTimeout(darkTimer); } // option « écran noir » reti
 $('blackout').addEventListener('dblclick', () => { blackout(false); armDark(); });
 $('blackout').addEventListener('touchend', e => { e.preventDefault(); const t = Date.now(); if (t - lastTap < 400) { blackout(false); armDark(); } lastTap = t; });
 document.addEventListener('pointerdown', () => { if ($('blackout').hidden) armDark(); });
+$('btBtn').onclick = () => { st.prefs.bt = !st.prefs.bt; save(); refreshHome(); };
 document.querySelectorAll('#modes button').forEach(b => b.onclick = () => { st.prefs.mode = b.dataset.v; save(); buildCards(); refreshHome(); });
 document.querySelectorAll('#decks button').forEach(b => b.onclick = () => { st.prefs.deck = b.dataset.v; save(); buildCards(); refreshHome(); });
 document.querySelectorAll('#dirs button').forEach(b => b.onclick = () => { st.prefs.dir = b.dataset.v; save(); refreshHome(); });
@@ -957,12 +964,14 @@ $('drive').addEventListener('click', e => {
   if (e.target.id === 'dStop') return;
   if (S && !S.classic && !S.dodo && S.paused) { S.paused = false; const r = S.resume; S.resume = null; r && r(); }
 });
+let btStream = null;
 async function stopSession(msg) {
   if (!S) return;
   S.on = false; const r = S.resume; S.resume = null; r && r();
   try { rec && rec.abort(); } catch (e) {}
   synth && synth.cancel();
   try { wake && wake.release(); } catch (e) {} wake = null;
+  if (btStream) { btStream.getTracks().forEach(t => t.stop()); btStream = null; }
   blackout(false); stars(-1); S = null; $('drive').hidden = true; $('cReveal').hidden = $('cJudge').hidden = $('dSay').hidden = true; refreshHome();
   if (msg) { $('warn').innerHTML = msg; $('warn').hidden = false; }
 }
@@ -992,6 +1001,13 @@ $('start').onclick = async () => {
   // demander le micro tout de suite (une seule fois)
   // (pas sur iPhone : ouvrir le micro ici bloque ensuite la voix ; la reconnaissance le demandera elle-même)
   if (!IOS) try { if (navigator.mediaDevices) { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } } catch (e) {}
+  // Android : garder le micro Bluetooth ouvert pendant la séance oblige le téléphone à basculer sur le micro
+  // des oreillettes / du kit (sinon la reconnaissance écoute avec le micro du téléphone)
+  if (!IOS && st.prefs.bt) try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const bt = devs.find(d => d.kind === 'audioinput' && /bluetooth|headset|casque|kit|car|buds|airpods/i.test(d.label));
+    btStream = await navigator.mediaDevices.getUserMedia({ audio: bt ? { deviceId: { exact: bt.deviceId } } : true });
+  } catch (e) { btStream = null; }
   try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
   beep('listen');
   S = { on: true, paused: false, count: 0, good: 0, bad: 0, len: st.prefs.len, cur: null, lastId: null };
