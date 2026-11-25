@@ -5,6 +5,9 @@
   "server": {
     "url": "https://onizard.github.io/aleph/",
     "androidScheme": "https",
-    "allowNavigation": ["onizard.github.io"]
-  }
+    "allowNavigation": [
+      "onizard.github.io"
+    ]
+  },
+  "appendUserAgent": "AlephApp"
 }

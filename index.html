@@ -1034,6 +1034,10 @@ document.getElementById('share').addEventListener('click', async () => {
   setTimeout(() => (b.textContent = "Partager l'appli"), 2500);
 });
 </script>
-<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+<script>
+// dans l'appli Android, pas de cache hors ligne : il empêcherait l'appli de brancher la voix et le micro natifs
+if (window.ALEPH_NATIVE || /AlephApp/.test(navigator.userAgent)) { if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {}); }
+else if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
 </body>
 </html>

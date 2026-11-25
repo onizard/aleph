@@ -15,6 +15,8 @@
     } catch (e) {}
   };
   window.ALEPH_NATIVE = true;
+  // petit message d'état sous la carte (pour comprendre ce qui se passe dans l'appli)
+  const status = t => { try { const h = document.getElementById('dHeard'); if (h && !/Entendu/.test(h.textContent)) h.textContent = t; } catch (e) {} };
 
   /* micro Bluetooth : allumé pendant l'écoute, éteint pendant que la voix parle (son de meilleure qualité) */
   let btOn = false, btTimer = 0;
@@ -32,13 +34,14 @@
   class NativeSR {
     constructor() { this.lang = 'fr-FR'; this.interimResults = true; this.maxAlternatives = 1; this.continuous = false; this._t = ''; this._done = false; }
     start() {
-      cur = this; this._done = false; this._t = '';
+      cur = this; this._done = false; this._t = ''; this._stopped = false;
       (async () => {
         if (!perm) perm = call('SpeechRecognition', 'requestPermissions').catch(() => {});
         await perm; await bt.on(); if (this._done) return;
         this.onstart && this.onstart();
+        status(btOn ? '🎙️ Écoute (micro Bluetooth)…' : '🎙️ Écoute (micro du téléphone)…');
         try { await call('SpeechRecognition', 'start', { language: this.lang, maxResults: 1, partialResults: true, popup: false }); }
-        catch (e) { this._fail(e); }
+        catch (e) { status('⚠️ Écoute impossible : ' + ((e && e.message) || e)); this._fail(e); }
       })();
     }
     _res(t, fin) {
@@ -52,12 +55,20 @@
       this.onerror && this.onerror({ error: /permission/i.test(m) ? 'not-allowed' : /network/i.test(m) ? 'network' : 'no-speech' });
       this._end();
     }
-    _end() { if (this._done) return; if (this._t) this._res(this._t, true); this._done = true; if (cur === this) cur = null; bt.offSoon(); this.onend && this.onend(); }
+    _end() { clearTimeout(this._endT); if (this._done) return; if (this._t) this._res(this._t, true); this._done = true; if (cur === this) cur = null; bt.offSoon(); this.onend && this.onend(); }
     stop() { call('SpeechRecognition', 'stop').catch(() => {}); }
     abort() { this._done = true; if (cur === this) cur = null; call('SpeechRecognition', 'stop').catch(() => {}); bt.offSoon(); }
   }
-  on('SpeechRecognition', 'partialResults', d => { const m = d && d.matches && d.matches[0]; if (cur && m) cur._res(m, false); });
-  on('SpeechRecognition', 'listeningState', d => { if (d && d.status === 'stopped' && cur) { const c = cur; setTimeout(() => c._end(), 150); } });
+  on('SpeechRecognition', 'partialResults', d => {
+    const m = d && d.matches && d.matches[0], c = cur; if (!c || !m) return;
+    c._res(m, false);
+    if (c._stopped && !c._done) { clearTimeout(c._endT); c._endT = setTimeout(() => c._end(), 300); } // résultat définitif reçu
+  });
+  on('SpeechRecognition', 'listeningState', d => {
+    if (!d || !cur) return;
+    if (d.status === 'started') status('🎙️ Je t\'entends…');
+    if (d.status === 'stopped') { const c = cur; c._stopped = true; c._endT = setTimeout(() => c._end(), 2500); }
+  });
   window.SpeechRecognition = window.webkitSpeechRecognition = NativeSR;
 
   /* voix */
