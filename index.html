@@ -676,6 +676,9 @@ function listen(lang, ms, check, longMs = 15000) {
       };
       // la reconnaissance s'arrête d'elle-même après une pause : on la relance tout de suite
       r.onend = () => { if (!finished && Date.now() - t0 < limit - 400) setTimeout(startOne, 30); };
+      // iPhone : redonner le type « lecture + enregistrement » juste avant d'écouter pousse iOS à prendre le micro
+      // des oreillettes / du kit Bluetooth branché, au lieu de celui du téléphone (astuce relevée dans le suivi de bugs WebKit)
+      if (IOS && navigator.audioSession) { try { navigator.audioSession.type = 'auto'; navigator.audioSession.type = 'play-and-record'; } catch (e) {} }
       try { r.start(); } catch (e) { if (IOS) $('dHeard').textContent = 'micro : ' + (e.name || 'start'); finish({ error: 'start' }); }
     }
     startOne(); meter.start();
